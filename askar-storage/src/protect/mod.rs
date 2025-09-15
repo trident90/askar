@@ -96,6 +96,7 @@ pub(crate) trait EntryEncryptor {
     fn decrypt_entry_tags(&self, enc_tags: Vec<EncEntryTag>) -> Result<Vec<EntryTag>, Error>;
 }
 
+#[allow(dead_code)]
 pub struct NullEncryptor;
 
 impl EntryEncryptor for NullEncryptor {

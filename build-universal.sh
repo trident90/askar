@@ -39,7 +39,10 @@ for target in $MACOS_UNIVERSAL_TARGETS; do
 	fi
 done
 
-MAJOR_VER=`sw_vers | grep ProductVersion | cut -f 2 | cut -f 1 -d .`
+MAJOR_VER=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+if [ -z "$MAJOR_VER" ]; then
+    MAJOR_VER=0 # Default to 0 if unable to determine version
+fi
 if [ "$MAJOR_VER" -lt 11 ]; then
 	echo "MacOS universal build requires OS 11 (Big Sur) or newer"
 	TARGET=

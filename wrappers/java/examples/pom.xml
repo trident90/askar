@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.hyperledger.aries</groupId>
+    <artifactId>aries-askar-examples</artifactId>
+    <version>0.4.5</version>
+    <packaging>jar</packaging>
+
+    <name>Aries Askar Java Examples</name>
+    <description>Examples for Aries Askar Java wrapper</description>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Askar Java wrapper dependency -->
+        <dependency>
+            <groupId>org.hyperledger.aries</groupId>
+            <artifactId>aries-askar</artifactId>
+            <version>0.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../target/aries-askar-0.4.5.jar</systemPath>
+        </dependency>
+
+        <!-- JNA for native library access -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.14.0</version>
+        </dependency>
+
+        <!-- Jackson for JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+
+        <!-- SLF4J for logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.9</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.9</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                </configuration>
+            </plugin>
+
+            <!-- Plugin to run examples -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>org.hyperledger.aries.askar.examples.BasicStoreExample</mainClass>
+                    <includeProjectDependencies>true</includeProjectDependencies>
+                    <includePluginDependencies>false</includePluginDependencies>
+                    <additionalClasspathElements>
+                        <additionalClasspathElement>${project.basedir}/../target/aries-askar-0.4.5.jar</additionalClasspathElement>
+                    </additionalClasspathElements>
+                    <systemProperties>
+                        <systemProperty>
+                            <key>java.library.path</key>
+                            <value>${project.basedir}/../../target/release:${java.library.path}</value>
+                        </systemProperty>
+                    </systemProperties>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>basic-store</id>
+                        <configuration>
+                            <mainClass>org.hyperledger.aries.askar.examples.BasicStoreExample</mainClass>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>cryptography</id>
+                        <configuration>
+                            <mainClass>org.hyperledger.aries.askar.examples.CryptographyExample</mainClass>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

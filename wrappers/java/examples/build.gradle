@@ -1,0 +1,76 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.hyperledger.aries'
+version = '0.4.5'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs '../target'
+    }
+}
+
+dependencies {
+    // Askar Java wrapper (built from parent project)
+    implementation files('../target/aries-askar-0.4.5.jar')
+
+    // JNA for native library access
+    implementation 'net.java.dev.jna:jna:5.14.0'
+
+    // Jackson for JSON processing
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+
+    // SLF4J for logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'org.slf4j:slf4j-simple:2.0.9'
+}
+
+// Configure the main application
+application {
+    mainClass = 'org.hyperledger.aries.askar.examples.BasicStoreExample'
+}
+
+// Add library path for native library
+run {
+    systemProperty 'java.library.path', "${projectDir}/../../target/release:${System.getProperty('java.library.path')}"
+}
+
+// Task to run BasicStoreExample
+tasks.register('runBasicStore', JavaExec) {
+    description = 'Run the BasicStoreExample'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.hyperledger.aries.askar.examples.BasicStoreExample'
+    systemProperty 'java.library.path', "${projectDir}/../../target/release:${System.getProperty('java.library.path')}"
+}
+
+// Task to run CryptographyExample
+tasks.register('runCryptography', JavaExec) {
+    description = 'Run the CryptographyExample'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.hyperledger.aries.askar.examples.CryptographyExample'
+    systemProperty 'java.library.path', "${projectDir}/../../target/release:${System.getProperty('java.library.path')}"
+}
+
+// Task to build parent project first
+tasks.register('buildParent', Exec) {
+    description = 'Build the parent Askar Java wrapper'
+    workingDir '../'
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'mvn clean package -DskipTests'
+    } else {
+        commandLine 'mvn', 'clean', 'package', '-DskipTests'
+    }
+}
+
+// Make sure parent is built before compiling examples
+compileJava.dependsOn buildParent

@@ -7,3 +7,9 @@ target
 *.tgz
 *.so
 out
+
+*.db
+*.dylib
+*.log
+.claude/
+target/

@@ -1,0 +1,122 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group = 'org.hyperledger.aries'
+version = '0.4.5'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+    withJavadocJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // JNA for native library access
+    implementation 'net.java.dev.jna:jna:5.14.0'
+
+    // Jackson for JSON processing
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+
+    // SLF4J for logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+
+    // Test dependencies
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testImplementation 'org.slf4j:slf4j-simple:2.0.9'
+}
+
+test {
+    useJUnitPlatform()
+
+    // Set library path for tests
+    systemProperty 'java.library.path', System.getProperty('java.library.path')
+}
+
+javadoc {
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+
+            pom {
+                name = 'Aries Askar Java Wrapper'
+                description = 'Java wrapper for Aries Askar secure storage library'
+                url = 'https://github.com/openwallet-foundation/askar'
+
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+
+                developers {
+                    developer {
+                        name = 'Hyperledger Aries Contributors'
+                        email = 'aries@lists.hyperledger.org'
+                        organization = 'Hyperledger'
+                        organizationUrl = 'https://www.hyperledger.org'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://github.com/openwallet-foundation/askar.git'
+                    developerConnection = 'scm:git:ssh://github.com:openwallet-foundation/askar.git'
+                    url = 'https://github.com/openwallet-foundation/askar/tree/main'
+                }
+            }
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.maven
+}
+
+tasks.register('copyNativeLibs', Copy) {
+    description = 'Copy native libraries to resources'
+
+    // Copy from build directory if available
+    from fileTree('../../target/release/') {
+        include 'libaries_askar.so'
+        include 'libaries_askar.dylib'
+        include 'aries_askar.dll'
+    }
+    into 'src/main/resources/native'
+
+    doFirst {
+        file('src/main/resources/native').mkdirs()
+    }
+}
+
+processResources.dependsOn copyNativeLibs
+
+// Task to build native library
+tasks.register('buildNative', Exec) {
+    description = 'Build the native Askar library'
+    workingDir '../../'
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'cargo build --release'
+    } else {
+        commandLine 'cargo', 'build', '--release'
+    }
+}
+
+copyNativeLibs.dependsOn buildNative
