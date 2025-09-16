@@ -254,9 +254,7 @@ public class Session implements AutoCloseable {
         } catch (Exception e) {
             throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Async operation failed", e);
         } finally {
-            if (value != null) {
-                LibraryLoader.freeBuffer(valueBuffer);
-            }
+            // valueBuffer is Java-allocated, no need to free
         }
     }
 
@@ -426,21 +424,19 @@ public class Session implements AutoCloseable {
         for (int i = 0; i < count; i++) {
             PointerByReference categoryRef = new PointerByReference();
             PointerByReference nameRef = new PointerByReference();
-            PointerByReference valueRef = new PointerByReference();
+            AskarLibrary.RawBuffer valueBuffer = new AskarLibrary.RawBuffer();
             PointerByReference tagsRef = new PointerByReference();
 
             AskarLibrary.INSTANCE.askar_entry_list_get_category(entryListHandle, i, categoryRef);
             AskarLibrary.INSTANCE.askar_entry_list_get_name(entryListHandle, i, nameRef);
-            AskarLibrary.INSTANCE.askar_entry_list_get_value(entryListHandle, i, valueRef);
+            AskarLibrary.INSTANCE.askar_entry_list_get_value(entryListHandle, i, valueBuffer);
             AskarLibrary.INSTANCE.askar_entry_list_get_tags(entryListHandle, i, tagsRef);
 
             try {
                 String category = categoryRef.getValue().getString(0);
                 String name = nameRef.getValue().getString(0);
 
-                // Read the RawBuffer structure from the pointer
-                AskarLibrary.RawBuffer valueBuffer = Structure.newInstance(AskarLibrary.RawBuffer.class, valueRef.getValue());
-                valueBuffer.read();
+                // valueBuffer is now filled by Rust with the SecretBuffer data
                 byte[] value = valueBuffer.toByteArray();
 
                 Map<String, Object> tags = null;
@@ -459,7 +455,10 @@ public class Session implements AutoCloseable {
             } finally {
                 LibraryLoader.freeString(categoryRef.getValue());
                 LibraryLoader.freeString(nameRef.getValue());
-                LibraryLoader.freeBuffer(new AskarLibrary.RawBuffer());
+                // valueBuffer contains Rust-allocated data, need to free it properly
+                if (valueBuffer.data != null && valueBuffer.data != Pointer.NULL) {
+                    AskarLibrary.INSTANCE.askar_buffer_free(valueBuffer);
+                }
                 LibraryLoader.freeString(tagsRef.getValue());
             }
         }

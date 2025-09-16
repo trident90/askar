@@ -125,31 +125,79 @@ public class LibraryLoader {
     };
 
     /**
-     * Convert a string to RawBuffer.
+     * Convert a string to InputBuffer for sending to native library.
+     * @param str The string to convert
+     * @return InputBuffer representation
+     */
+    public static AskarLibrary.InputBuffer stringToInputBuffer(String str) {
+        return new AskarLibrary.InputBuffer(str);
+    }
+
+    /**
+     * Convert bytes to InputBuffer for sending to native library.
+     * @param bytes The bytes to convert
+     * @return InputBuffer representation
+     */
+    public static AskarLibrary.InputBuffer bytesToInputBuffer(byte[] bytes) {
+        return new AskarLibrary.InputBuffer(bytes);
+    }
+
+    /**
+     * Convert a string to RawBuffer (legacy - use stringToInputBuffer for new code).
      * @param str The string to convert
      * @return RawBuffer representation
+     * @deprecated Use stringToInputBuffer instead
      */
+    @Deprecated
     public static AskarLibrary.RawBuffer stringToRawBuffer(String str) {
         return new AskarLibrary.RawBuffer(str);
     }
 
     /**
-     * Convert bytes to RawBuffer.
+     * Convert bytes to RawBuffer (legacy - use bytesToInputBuffer for new code).
      * @param bytes The bytes to convert
      * @return RawBuffer representation
+     * @deprecated Use bytesToInputBuffer instead
      */
+    @Deprecated
     public static AskarLibrary.RawBuffer bytesToRawBuffer(byte[] bytes) {
         return new AskarLibrary.RawBuffer(bytes);
     }
 
     /**
-     * Free a RawBuffer.
-     * @param buffer The buffer to free
+     * Free an OutputBuffer that was allocated by Rust.
+     * ONLY use this for buffers returned from native library functions.
+     * @param buffer The output buffer to free
      */
-    public static void freeBuffer(AskarLibrary.RawBuffer buffer) {
-        if (buffer != null && buffer.data != null && buffer.data != Pointer.NULL) {
-            AskarLibrary.INSTANCE.askar_buffer_free(buffer);
+    public static void freeOutputBuffer(AskarLibrary.OutputBuffer buffer) {
+        if (buffer != null && buffer.isValid()) {
+            // Cast to RawBuffer for FFI compatibility
+            AskarLibrary.RawBuffer rawBuffer = new AskarLibrary.RawBuffer();
+            rawBuffer.len = buffer.len;
+            rawBuffer.data = buffer.data;
+            AskarLibrary.INSTANCE.askar_buffer_free(rawBuffer);
         }
+    }
+
+    /**
+     * Free an InputBuffer's Java-allocated memory.
+     * @param buffer The input buffer to clean up
+     */
+    public static void freeInputBuffer(AskarLibrary.InputBuffer buffer) {
+        if (buffer != null) {
+            buffer.freeJavaMemory();
+        }
+    }
+
+    /**
+     * Free a RawBuffer (legacy method - DANGEROUS).
+     * @param buffer The buffer to free
+     * @deprecated DO NOT USE - this method is unsafe and can cause crashes
+     */
+    @Deprecated
+    public static void freeBuffer(AskarLibrary.RawBuffer buffer) {
+        // Do nothing - this method was causing crashes by freeing Java memory with Rust deallocator
+        logger.warn("freeBuffer() called - this method is deprecated and unsafe. Use freeInputBuffer() or freeOutputBuffer() instead.");
     }
 
     /**

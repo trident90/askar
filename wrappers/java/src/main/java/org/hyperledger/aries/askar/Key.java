@@ -80,7 +80,7 @@ public class Key implements AutoCloseable {
             LibraryLoader.checkError(result);
             return new Key(Pointer.nativeValue(keyHandle.getValue()));
         } finally {
-            LibraryLoader.freeBuffer(seedBuffer);
+            // seedBuffer is Java-allocated, no need to free
         }
     }
 
@@ -106,7 +106,7 @@ public class Key implements AutoCloseable {
             LibraryLoader.checkError(result);
             return new Key(Pointer.nativeValue(keyHandle.getValue()));
         } finally {
-            LibraryLoader.freeBuffer(secretBuffer);
+            // secretBuffer is Java-allocated, no need to free
         }
     }
 
@@ -132,7 +132,7 @@ public class Key implements AutoCloseable {
             LibraryLoader.checkError(result);
             return new Key(Pointer.nativeValue(keyHandle.getValue()));
         } finally {
-            LibraryLoader.freeBuffer(publicBuffer);
+            // publicBuffer is Java-allocated, no need to free
         }
     }
 
@@ -217,12 +217,13 @@ public class Key implements AutoCloseable {
         LibraryLoader.checkError(result);
 
         try {
-            // Read the RawBuffer structure from the pointer
-            AskarLibrary.RawBuffer buffer = Structure.newInstance(AskarLibrary.RawBuffer.class, publicBytesRef.getValue());
-            buffer.read();
+            // Read the OutputBuffer structure from the pointer
+            AskarLibrary.OutputBuffer buffer = new AskarLibrary.OutputBuffer(publicBytesRef.getValue());
             return buffer.toByteArray();
         } finally {
-            LibraryLoader.freeBuffer(Structure.newInstance(AskarLibrary.RawBuffer.class, publicBytesRef.getValue()));
+            // Free the Rust-allocated buffer
+            AskarLibrary.OutputBuffer bufferToFree = new AskarLibrary.OutputBuffer(publicBytesRef.getValue());
+            LibraryLoader.freeOutputBuffer(bufferToFree);
         }
     }
 
@@ -239,12 +240,13 @@ public class Key implements AutoCloseable {
         LibraryLoader.checkError(result);
 
         try {
-            // Read the RawBuffer structure from the pointer
-            AskarLibrary.RawBuffer buffer = Structure.newInstance(AskarLibrary.RawBuffer.class, secretBytesRef.getValue());
-            buffer.read();
+            // Read the OutputBuffer structure from the pointer
+            AskarLibrary.OutputBuffer buffer = new AskarLibrary.OutputBuffer(secretBytesRef.getValue());
             return buffer.toByteArray();
         } finally {
-            LibraryLoader.freeBuffer(Structure.newInstance(AskarLibrary.RawBuffer.class, secretBytesRef.getValue()));
+            // Free the Rust-allocated buffer
+            AskarLibrary.OutputBuffer bufferToFree = new AskarLibrary.OutputBuffer(secretBytesRef.getValue());
+            LibraryLoader.freeOutputBuffer(bufferToFree);
         }
     }
 
@@ -315,13 +317,16 @@ public class Key implements AutoCloseable {
             );
             LibraryLoader.checkError(result);
 
-            // Read the RawBuffer structure from the pointer
-            AskarLibrary.RawBuffer buffer = Structure.newInstance(AskarLibrary.RawBuffer.class, signatureRef.getValue());
-            buffer.read();
-            return buffer.toByteArray();
+            // Read the OutputBuffer structure from the pointer
+            AskarLibrary.OutputBuffer buffer = new AskarLibrary.OutputBuffer(signatureRef.getValue());
+            byte[] signature = buffer.toByteArray();
+            
+            // Free the Rust-allocated buffer
+            LibraryLoader.freeOutputBuffer(buffer);
+            
+            return signature;
         } finally {
-            LibraryLoader.freeBuffer(messageBuffer);
-            LibraryLoader.freeBuffer(new AskarLibrary.RawBuffer());
+            // messageBuffer is Java-allocated, no need to free
         }
     }
 
