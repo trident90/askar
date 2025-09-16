@@ -38,6 +38,17 @@ public class AskarNative {
     
     public static native void storeClose(long storeHandle);
     
+    // Store management operations
+    public static native void storeRekey(long storeHandle, String keyMethod, String passKey);
+    public static native boolean storeRemove(String uri);
+    public static native long storeCopyTo(long storeHandle, String targetUri, String keyMethod, String passKey, boolean recreate);
+    public static native String storeCreateProfile(long storeHandle, String profile);
+    public static native boolean storeRemoveProfile(long storeHandle, String profile);
+    public static native String storeGetProfileName(long storeHandle);
+    public static native String storeGetDefaultProfile(long storeHandle);
+    public static native void storeSetDefaultProfile(long storeHandle, String profile);
+    public static native String[] storeListProfiles(long storeHandle);
+    
     // Session operations  
     public static native long sessionStart(long storeHandle, String profile, boolean asTransaction);
     public static native int sessionCount(long sessionHandle, String category, String tagFilter);
@@ -64,6 +75,19 @@ public class AskarNative {
     
     public static native void sessionClose(long sessionHandle, boolean commit);
     
+    // Advanced session operations
+    public static native void sessionInsertKey(long sessionHandle, long keyHandle, String name, String metadata, String tags, long expiryMs);
+    public static native long sessionFetchKey(long sessionHandle, String name, boolean forUpdate);
+    public static native void sessionUpdateKey(long sessionHandle, String name, String metadata, String tags, long expiryMs);
+    public static native void sessionRemoveKey(long sessionHandle, String name);
+    public static native long sessionFetchAllKeys(long sessionHandle, String tagFilter, int limit, boolean forUpdate);
+    public static native long sessionRemoveAll(long sessionHandle, String category, String tagFilter);
+    
+    // Scan operations
+    public static native long scanStart(long storeHandle, String profile, String category, String tagFilter, long offset, long limit, String orderBy, boolean descending);
+    public static native long scanNext(long scanHandle);
+    public static native void scanFree(long scanHandle);
+    
     // Entry list operations
     public static native int entryListCount(long entryListHandle);
     public static native String entryListGetCategory(long entryListHandle, int index);
@@ -71,6 +95,15 @@ public class AskarNative {
     public static native byte[] entryListGetValue(long entryListHandle, int index);
     public static native String entryListGetTags(long entryListHandle, int index);
     public static native void entryListFree(long entryListHandle);
+    
+    // Key entry list operations
+    public static native int keyEntryListCount(long keyEntryListHandle);
+    public static native String keyEntryListGetAlgorithm(long keyEntryListHandle, int index);
+    public static native String keyEntryListGetName(long keyEntryListHandle, int index);
+    public static native String keyEntryListGetMetadata(long keyEntryListHandle, int index);
+    public static native String keyEntryListGetTags(long keyEntryListHandle, int index);
+    public static native long keyEntryListLoadKey(long keyEntryListHandle, int index);
+    public static native void keyEntryListFree(long keyEntryListHandle);
     
     // Key operations
     public static native long keyGenerate(String algorithm, String backend, boolean ephemeral);
@@ -106,6 +139,9 @@ public class AskarNative {
     public static native long keyConvert(long keyHandle, String algorithm);
     public static native byte[] keyAeadRandomNonce(long keyHandle);
     public static native byte[] keyCryptoBoxRandomNonce();
+    
+    // Additional utility functions
+    public static native String storeGenerateRawKey(byte[] seed);
     
     // Utility functions
     public static native String getLastError();
