@@ -5,18 +5,15 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.hyperledger.aries.askar.Entry;
 
 /**
  * JNI-based implementation of Askar Store functionality.
  * This replaces the JNA-based implementation with direct JNI calls.
+ * No external dependencies required.
  */
 public class StoreJNI implements Closeable {
     
     private long handle;
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     
     static {
         AskarNative.setMaxLogLevel(3); // INFO level
@@ -65,10 +62,24 @@ public class StoreJNI implements Closeable {
     }
     
     /**
-     * Create a new session.
+     * Get the store handle.
      */
-    public SessionJNI session() {
-        return new SessionJNI(this.handle);
+    public long getHandle() {
+        return handle;
+    }
+    
+    /**
+     * Create a session for this store.
+     */
+    public SessionBuilder session() {
+        return new SessionBuilder(this);
+    }
+    
+    /**
+     * Get the Askar library version.
+     */
+    public static String getVersion() {
+        return AskarNative.getVersion();
     }
     
     @Override
@@ -77,8 +88,9 @@ public class StoreJNI implements Closeable {
             try {
                 AskarNative.storeClose(handle);
             } catch (Exception e) {
-                // Log error but don't throw in close()
-                System.err.println("Error closing store: " + e.getMessage());
+                // Can't throw exception from close() per Closeable interface
+                // Log error if needed
+                System.err.println("Failed to close store: " + e.getMessage());
             } finally {
                 handle = 0;
             }
@@ -86,40 +98,44 @@ public class StoreJNI implements Closeable {
     }
     
     /**
-     * Get the version of the Askar library.
+     * Builder for creating sessions.
      */
-    public static String getVersion() {
-        return AskarNative.getVersion();
+    public static class SessionBuilder {
+        private final StoreJNI store;
+        private String profile = "default";
+        private boolean asTransaction = false;
+        
+        SessionBuilder(StoreJNI store) {
+            this.store = store;
+        }
+        
+        public SessionBuilder profile(String profile) {
+            this.profile = profile;
+            return this;
+        }
+        
+        public SessionBuilder asTransaction(boolean asTransaction) {
+            this.asTransaction = asTransaction;
+            return this;
+        }
+        
+        public SessionJNI open() throws AskarException {
+            return new SessionJNI(store.handle, profile, asTransaction);
+        }
     }
     
     /**
-     * JNI-based Session implementation.
+     * JNI-based session implementation.
      */
     public static class SessionJNI implements Closeable {
-        private long storeHandle;
         private long sessionHandle;
         
-        SessionJNI(long storeHandle) {
-            this.storeHandle = storeHandle;
-        }
-        
-        /**
-         * Open a new session.
-         */
-        public SessionJNI open() throws AskarException {
-            return open(false);
-        }
-        
-        /**
-         * Open a new session.
-         */
-        public SessionJNI open(boolean asTransaction) throws AskarException {
+        SessionJNI(long storeHandle, String profile, boolean asTransaction) throws AskarException {
             try {
-                this.sessionHandle = AskarNative.sessionStart(storeHandle, null, asTransaction);
+                this.sessionHandle = AskarNative.sessionStart(storeHandle, profile, asTransaction);
                 if (this.sessionHandle == 0) {
                     throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Failed to start session");
                 }
-                return this;
             } catch (Exception e) {
                 if (e instanceof AskarException) {
                     throw e;
@@ -129,22 +145,14 @@ public class StoreJNI implements Closeable {
         }
         
         /**
-         * Count entries in a category.
+         * Get the session handle.
          */
-        public int count(String category, String tagFilter) throws AskarException {
-            checkOpen();
-            try {
-                return AskarNative.sessionCount(sessionHandle, category, tagFilter);
-            } catch (Exception e) {
-                if (e instanceof AskarException) {
-                    throw e;
-                }
-                throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Session count failed", e);
-            }
+        public long getHandle() {
+            return sessionHandle;
         }
         
         /**
-         * Insert a new entry.
+         * Insert data into the store.
          */
         public void insert(String category, String name, byte[] value, Map<String, Object> tags, Long expiryMs) 
                 throws AskarException {
@@ -152,15 +160,15 @@ public class StoreJNI implements Closeable {
         }
         
         /**
-         * Update an entry.
+         * Update data in the store.
          */
-        private void update(EntryOperation operation, String category, String name, byte[] value, 
-                           Map<String, Object> tags, Long expiryMs) throws AskarException {
+        public void update(EntryOperation operation, String category, String name, byte[] value, 
+                Map<String, Object> tags, Long expiryMs) throws AskarException {
             checkOpen();
             try {
                 String tagsJson = null;
                 if (tags != null && !tags.isEmpty()) {
-                    tagsJson = objectMapper.writeValueAsString(tags);
+                    tagsJson = mapToSimpleJson(tags);
                 }
                 
                 AskarNative.sessionUpdate(
@@ -172,8 +180,6 @@ public class StoreJNI implements Closeable {
                     tagsJson, 
                     expiryMs != null ? expiryMs : -1
                 );
-            } catch (JsonProcessingException e) {
-                throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Failed to serialize tags", e);
             } catch (Exception e) {
                 if (e instanceof AskarException) {
                     throw e;
@@ -206,19 +212,24 @@ public class StoreJNI implements Closeable {
         }
         
         /**
-         * Fetch all entries from a category.
+         * Fetch all entries matching criteria.
          */
-        public List<Entry> fetchAll(String category, String tagFilter, Integer limit, String orderBy, 
-                                  boolean descending, boolean forUpdate) throws AskarException {
+        public List<Entry> fetchAll(String category, String tagFilter, Integer limit, 
+                String orderBy, Boolean descending, Boolean forUpdate) throws AskarException {
             checkOpen();
             try {
                 long entryListHandle = AskarNative.sessionFetchAll(
-                    sessionHandle, category, tagFilter, 
-                    limit != null ? limit : -1, orderBy, descending, forUpdate
+                    sessionHandle, 
+                    category, 
+                    tagFilter, 
+                    limit != null ? limit : -1, 
+                    orderBy, 
+                    descending != null ? descending : false, 
+                    forUpdate != null ? forUpdate : false
                 );
                 
                 if (entryListHandle == 0) {
-                    return new ArrayList<>();
+                    return new ArrayList<>(); // No entries found
                 }
                 
                 return processEntryList(entryListHandle);
@@ -226,18 +237,29 @@ public class StoreJNI implements Closeable {
                 if (e instanceof AskarException) {
                     throw e;
                 }
-                throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Session fetch all failed", e);
+                throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Session fetchAll failed", e);
             }
         }
         
         /**
-         * Process entry list returned from native code.
+         * Count entries matching criteria.
          */
+        public int count(String category, String tagFilter) throws AskarException {
+            checkOpen();
+            try {
+                return AskarNative.sessionCount(sessionHandle, category, tagFilter);
+            } catch (Exception e) {
+                if (e instanceof AskarException) {
+                    throw e;
+                }
+                throw new AskarException(AskarException.ErrorCode.UNEXPECTED, "Session count failed", e);
+            }
+        }
+        
         private List<Entry> processEntryList(long entryListHandle) throws AskarException {
-            List<Entry> entries = new ArrayList<>();
-            
             try {
                 int count = AskarNative.entryListCount(entryListHandle);
+                List<Entry> entries = new ArrayList<>(count);
                 
                 for (int i = 0; i < count; i++) {
                     String category = AskarNative.entryListGetCategory(entryListHandle, i);
@@ -247,12 +269,7 @@ public class StoreJNI implements Closeable {
                     
                     Map<String, Object> tags = null;
                     if (tagsJson != null && !tagsJson.isEmpty()) {
-                        try {
-                            tags = objectMapper.readValue(tagsJson, Map.class);
-                        } catch (JsonProcessingException e) {
-                            // Log warning and continue with null tags
-                            System.err.println("Warning: Failed to parse tags JSON: " + e.getMessage());
-                        }
+                        tags = parseSimpleJson(tagsJson);
                     }
                     
                     entries.add(new Entry(category, name, value, tags));
@@ -275,14 +292,85 @@ public class StoreJNI implements Closeable {
         public void close() {
             if (sessionHandle != 0) {
                 try {
-                    AskarNative.sessionClose(sessionHandle, true); // commit = true
+                    AskarNative.sessionClose(sessionHandle, true);
                 } catch (Exception e) {
-                    // Log error but don't throw in close()
-                    System.err.println("Error closing session: " + e.getMessage());
+                    // Can't throw exception from close() per Closeable interface
+                    // Log error if needed
+                    System.err.println("Failed to close session: " + e.getMessage());
                 } finally {
                     sessionHandle = 0;
                 }
             }
         }
+    }
+    
+    /**
+     * Simple JSON serialization for tags (no external dependencies).
+     * This is a basic implementation for simple key-value pairs.
+     */
+    private static String mapToSimpleJson(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (!first) {
+                sb.append(",");
+            }
+            sb.append("\"").append(escapeJsonString(entry.getKey())).append("\":");
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                sb.append("\"").append(escapeJsonString((String) value)).append("\"");
+            } else if (value instanceof Number || value instanceof Boolean) {
+                sb.append(value);
+            } else {
+                sb.append("\"").append(escapeJsonString(String.valueOf(value))).append("\"");
+            }
+            first = false;
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+    
+    /**
+     * Simple JSON parsing for tags (no external dependencies).
+     * This is a basic implementation for simple key-value pairs.
+     */
+    private static Map<String, Object> parseSimpleJson(String json) {
+        Map<String, Object> result = new HashMap<>();
+        if (json == null || json.trim().isEmpty() || "{}".equals(json.trim())) {
+            return result;
+        }
+        
+        // Very basic JSON parsing - sufficient for simple tag structures
+        String content = json.trim();
+        if (content.startsWith("{") && content.endsWith("}")) {
+            content = content.substring(1, content.length() - 1);
+            if (!content.trim().isEmpty()) {
+                String[] pairs = content.split(",");
+                for (String pair : pairs) {
+                    String[] keyValue = pair.split(":", 2);
+                    if (keyValue.length == 2) {
+                        String key = keyValue[0].trim().replaceAll("^\"|\"$", "");
+                        String value = keyValue[1].trim().replaceAll("^\"|\"$", "");
+                        result.put(key, value);
+                    }
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    private static String escapeJsonString(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t");
     }
 }

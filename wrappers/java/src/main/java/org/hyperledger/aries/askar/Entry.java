@@ -1,16 +1,12 @@
 package org.hyperledger.aries.askar;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.Map;
 
 /**
  * Represents a single entry retrieved from the store.
+ * Simplified version without external dependencies.
  */
 public class Entry {
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final String category;
     private final String name;
@@ -64,32 +60,12 @@ public class Entry {
     }
 
     /**
-     * Get the entry value as JSON object.
-     * @param clazz The class to deserialize to
-     * @param <T> The type to deserialize to
-     * @return The deserialized object
-     * @throws AskarException If deserialization fails
+     * Get the entry value as JSON string.
+     * Note: For actual JSON parsing, use external JSON libraries as needed.
+     * @return The value as a JSON string
      */
-    public <T> T getValueJson(Class<T> clazz) throws AskarException {
-        if (value == null || value.length == 0) {
-            return null;
-        }
-
-        try {
-            return objectMapper.readValue(value, clazz);
-        } catch (Exception e) {
-            throw new AskarException(AskarException.ErrorCode.INPUT, "Failed to parse JSON value", e);
-        }
-    }
-
-    /**
-     * Get the entry value as a generic Map.
-     * @return The value as a Map
-     * @throws AskarException If deserialization fails
-     */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> getValueJsonMap() throws AskarException {
-        return getValueJson(Map.class);
+    public String getValueJsonString() {
+        return getValueString();
     }
 
     /**

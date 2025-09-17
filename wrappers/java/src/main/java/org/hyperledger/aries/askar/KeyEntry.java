@@ -4,6 +4,7 @@ import java.util.Map;
 
 /**
  * Represents a key entry retrieved from the store.
+ * Simplified version without Key class dependency.
  */
 public class KeyEntry {
 
@@ -11,7 +12,7 @@ public class KeyEntry {
     private final String name;
     private final String metadata;
     private final Map<String, Object> tags;
-    private final Key key;
+    private final byte[] keyData;
 
     /**
      * Constructor for KeyEntry.
@@ -19,14 +20,14 @@ public class KeyEntry {
      * @param name The key name
      * @param metadata The key metadata
      * @param tags The key tags
-     * @param key The actual key instance
+     * @param keyData The key data as bytes
      */
-    public KeyEntry(String algorithm, String name, String metadata, Map<String, Object> tags, Key key) {
+    public KeyEntry(String algorithm, String name, String metadata, Map<String, Object> tags, byte[] keyData) {
         this.algorithm = algorithm;
         this.name = name;
         this.metadata = metadata;
         this.tags = tags;
-        this.key = key;
+        this.keyData = keyData != null ? keyData.clone() : new byte[0];
     }
 
     /**
@@ -62,11 +63,11 @@ public class KeyEntry {
     }
 
     /**
-     * Get the key instance.
-     * @return The key
+     * Get the key data.
+     * @return The key data as bytes
      */
-    public Key getKey() {
-        return key;
+    public byte[] getKeyData() {
+        return keyData != null ? keyData.clone() : new byte[0];
     }
 
     @Override
