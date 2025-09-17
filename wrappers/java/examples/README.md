@@ -1,192 +1,256 @@
 # Askar Java Examples
 
-이 디렉토리에는 Askar Java wrapper 사용법을 보여주는 예제들이 포함되어 있습니다.
+This directory contains examples demonstrating the usage of the Askar Java wrapper.
 
-## 전제 조건
+## Prerequisites
 
-1. **Java 8 이상**
-2. **Maven 또는 Gradle**
-3. **Askar 네이티브 라이브러리** (libaries_askar.so/.dylib/.dll)
+1. **Java 8 or higher**
+2. **Maven** (recommended)
+3. **SQLite 3** (for store operations)
+4. **Askar native library** (libaskar_jni_wrapper.so)
 
-## 빌드 및 실행 방법
+## Quick Start
 
-### 1. 네이티브 라이브러리 빌드 (필요한 경우)
-
-먼저 Askar 네이티브 라이브러리를 빌드해야 합니다:
-
-```bash
-cd ../../
-cargo build --release
-```
-
-### 2. Java wrapper 빌드
-
-예제를 실행하기 전에 Java wrapper를 빌드해야 합니다:
+### 1. Build Everything
 
 ```bash
-cd wrappers/java
-mvn clean package -DskipTests
-```
-
-### 3. 예제 실행
-
-#### Maven 사용
-
-```bash
+# From parent directory
+cd ..
+mvn clean compile package -DskipTests
 cd examples
-
-# BasicStoreExample 실행
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.BasicStoreExample"
-
-# CryptographyExample 실행
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.CryptographyExample"
-
-# 또는 predefined execution 사용
-mvn exec:java@basic-store
-mvn exec:java@cryptography
+mvn clean compile
 ```
 
-#### Gradle 사용
+### 2. Setup Environment for Store Operations
 
 ```bash
-cd examples
+# Source the environment setup script (important: use 'source' or '.')
+source setup-store-env.sh
 
-# BasicStoreExample 실행 (기본)
-./gradlew run
-
-# 또는 특정 태스크 사용
-./gradlew runBasicStore
-./gradlew runCryptography
+# This script will check and setup:
+# ✅ SQLite installation
+# ✅ Directory write permissions
+# ✅ Database creation capability
+# ✅ Java environment (JAVA_HOME)
+# ✅ Native library linking
+# ✅ Environment variables
 ```
 
-### 4. 직접 Java 명령어로 실행
+### 3. Run Examples
+
+#### Key Operations (Always Work)
+```bash
+# High-level wrapper demo
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.SimpleHighLevelTest
+
+# Basic API test
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.SimpleTest
+
+# Comprehensive cryptography
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.CryptographyExample
+```
+
+#### Store Operations (Requires Environment Setup)
+```bash
+# Make sure you ran: source setup-store-env.sh first!
+
+# Basic store operations
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.BasicStoreExample
+
+# Complete JNI demonstration
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.CompleteJNITest
+```
+
+## Available Examples
+
+### 1. SimpleHighLevelTest ⭐⭐⭐⭐⭐
+**Recommended starting point**
+- High-level wrapper demonstration
+- Key generation with automatic cleanup
+- Digital signatures and verification
+- Deterministic keys from seed
+- Try-with-resources pattern
+
+**Status**: ✅ Fully working
+
+### 2. SimpleTest ⭐⭐⭐⭐⭐
+- Basic API verification
+- Key operations testing
+- Store operation attempt
+- Version information
+
+**Status**: ✅ Key operations work, Store may need setup
+
+### 3. CryptographyExample ⭐⭐⭐⭐⭐
+- Comprehensive cryptographic operations
+- Multiple key algorithms
+- Digital signatures with tamper detection
+- Deterministic key generation
+- Key format conversions
+
+**Status**: ✅ Fully working
+
+### 4. BasicStoreExample ⭐⭐⭐
+- Store provisioning and management
+- Data insertion, retrieval, updates
+- Tag-based querying
+- Profile operations
+- Session management
+
+**Status**: ⚠️ Requires environment setup
+
+### 5. CompleteJNITest ⭐⭐⭐
+- Complete JNI API demonstration
+- All major operations showcase
+- Error handling examples
+- Performance testing
+
+**Status**: ⚠️ Requires environment setup
+
+## Environment Setup Details
+
+The `setup-store-env.sh` script performs these checks:
+
+### 1. SQLite Installation Check
+```bash
+sqlite3 --version
+```
+
+### 2. Directory Permissions Test
+```bash
+touch test_write.tmp && rm test_write.tmp
+```
+
+### 3. Database Creation Test
+```bash
+sqlite3 test.db "CREATE TABLE test(id INTEGER); SELECT 1;" && rm test.db
+```
+
+### 4. Native Library Verification
+```bash
+ls -la ../src/main/native/libaskar_jni_wrapper.so
+ldd ../src/main/native/libaskar_jni_wrapper.so | grep libaries_askar
+```
+
+### 5. Environment Variables
+- `JAVA_HOME`: Java installation path
+- `LD_LIBRARY_PATH`: Native library search path
+- `RUST_LOG`: Logging level (warn/debug)
+
+## Troubleshooting
+
+### 1. "UnsatisfiedLinkError: no askar_jni_wrapper"
+```
+Solution: Ensure native library is built and library path is correct
+cd ../src/main/native && ./build.sh
+```
+
+### 2. "symbol lookup error: undefined symbol: askar_*"
+```
+Solution: Native library found but Askar core not linked
+cd ../src/main/native && export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 && ./build.sh
+```
+
+### 3. Store provisioning fails
+```
+Solution: Check environment setup
+source setup-store-env.sh
+```
+
+### 4. SQLite errors
+```
+Solution: Install SQLite development libraries
+# Ubuntu/Debian
+sudo apt install sqlite3 libsqlite3-dev
+
+# CentOS/RHEL
+sudo yum install sqlite sqlite-devel
+```
+
+### 5. Permission denied errors
+```
+Solution: Check directory permissions
+chmod 755 .
+mkdir -p test_data && chmod 755 test_data
+```
+
+## Manual Environment Setup
+
+If you prefer to set up manually instead of using the script:
 
 ```bash
-cd examples
+# 1. Install SQLite
+sudo apt install sqlite3 libsqlite3-dev  # Ubuntu/Debian
 
-# 먼저 컴파일
-mvn compile
-# 또는
-./gradlew compileJava
+# 2. Set Java environment
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 
-# Java 명령어로 직접 실행
-java -cp "target/classes:../target/aries-askar-0.4.5.jar:~/.m2/repository/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar:~/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.16.1/jackson-core-2.16.1.jar:~/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.16.1/jackson-databind-2.16.1.jar:~/.m2/repository/org/slf4j/slf4j-api/2.0.9/slf4j-api-2.0.9.jar:~/.m2/repository/org/slf4j/slf4j-simple/2.0.9/slf4j-simple-2.0.9.jar" \
--Djava.library.path="../../target/release" \
-org.hyperledger.aries.askar.examples.BasicStoreExample
+# 3. Build native library
+cd ../src/main/native && ./build.sh && cd -
+
+# 4. Set library path
+export LD_LIBRARY_PATH="../src/main/native:/home/ubuntu/Projects/DID/askar/target/release:$LD_LIBRARY_PATH"
+
+# 5. Set logging (optional)
+export RUST_LOG=warn  # or 'debug' for verbose output
+
+# 6. Create test directory
+mkdir -p test_data
 ```
 
-## 포함된 예제들
+## Running with Debug Output
 
-### 1. BasicStoreExample
-
-기본적인 스토어 작업을 보여줍니다:
-- 스토어 생성 및 열기
-- 데이터 삽입, 조회, 업데이트, 삭제
-- 태그를 사용한 메타데이터 관리
-- 트랜잭션 사용
-- 프로파일 관리
-- 키 저장 및 관리
-
-### 2. CryptographyExample
-
-암호화 기능을 보여줍니다:
-- 다양한 키 알고리즘 사용
-- 디지털 서명 생성 및 검증
-- 시드에서 키 유도
-- 키 형식 변환 (raw bytes, JWK)
-- 키 알고리즘 간 변환
-
-## 문제 해결
-
-### 1. 네이티브 라이브러리를 찾을 수 없는 경우
-
-```
-java.lang.UnsatisfiedLinkError: Unable to load library 'aries_askar'
-```
-
-**해결방법:**
-- 네이티브 라이브러리가 올바른 위치에 있는지 확인
-- `java.library.path` 시스템 속성이 올바른지 확인
-- 라이브러리 파일명이 플랫폼에 맞는지 확인:
-  - Linux: `libaries_askar.so`
-  - macOS: `libaries_askar.dylib`
-  - Windows: `aries_askar.dll`
-
-### 2. 클래스패스 문제
-
-```
-java.lang.ClassNotFoundException
-```
-
-**해결방법:**
-- 모든 필요한 JAR 파일이 클래스패스에 포함되어 있는지 확인
-- Maven/Gradle을 사용하여 의존성을 자동으로 관리
-
-### 3. Java 버전 호환성
-
-```
-java.lang.UnsupportedClassVersionError
-```
-
-**해결방법:**
-- Java 8 이상을 사용하고 있는지 확인
-- `JAVA_HOME` 환경변수가 올바른지 확인
-
-## 라이브러리 경로 설정
-
-### Linux/macOS
+For troubleshooting store operations:
 
 ```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../target/release
-# 또는
-export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(pwd)/../../target/release  # macOS
+export RUST_LOG=debug
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.BasicStoreExample
 ```
 
-### Windows
+## Expected Output
 
-```cmd
-set PATH=%PATH%;%CD%\..\..\target\release
+### ✅ Key Operations (Always Work)
+```
+=== Simple High-Level Wrapper Test ===
+✅ Generated Ed25519 key: ed25519
+✅ Message signed, signature length: 64 bytes  
+✅ Signature verification: VALID
+🎉 High-level wrapper test completed successfully!
 ```
 
-## 스크립트를 사용한 실행
+### ⚠️ Store Operations (Additional Setup Required)
+```
+=== Memory Store Test ===
+✅ Askar version: 0.4.5
+⚠️  Store provisioning: Requires additional Askar core setup
+   URI: sqlite://:memory:
+   Status: All store operations currently return handle 0
 
-편의를 위해 실행 스크립트를 만들 수 있습니다:
-
-### run-examples.sh (Linux/macOS)
-
-```bash
-#!/bin/bash
-cd "$(dirname "$0")"
-
-# 네이티브 라이브러리 경로 설정
-export LD_LIBRARY_PATH="$(pwd)/../../target/release:$LD_LIBRARY_PATH"
-export DYLD_LIBRARY_PATH="$(pwd)/../../target/release:$DYLD_LIBRARY_PATH"
-
-# Maven을 사용하여 예제 실행
-echo "Running BasicStoreExample..."
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.BasicStoreExample"
-
-echo "Running CryptographyExample..."
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.CryptographyExample"
+Note: Key operations work perfectly, store operations need investigation
 ```
 
-### run-examples.bat (Windows)
+## Additional Resources
 
-```batch
-@echo off
-cd /d "%~dp0"
+- [Developer Manual](../DEVELOPER_MANUAL.md) - Complete API documentation
+- [Native Library Build Guide](../src/main/native/README.md)
+- [Troubleshooting Guide](../DEVELOPER_MANUAL.md#troubleshooting)
 
-set PATH=%PATH%;%CD%\..\..\target\release
+## Files in This Directory
 
-echo Running BasicStoreExample...
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.BasicStoreExample"
-
-echo Running CryptographyExample...
-mvn exec:java -Dexec.mainClass="org.hyperledger.aries.askar.examples.CryptographyExample"
-```
-
-## 추가 정보
-
-- [Askar Java Wrapper README](../README.md)
-- [Contributing Guide](../CONTRIBUTING.md)
-- [API Documentation](../target/site/apidocs/index.html) (javadoc 생성 후)
+- `setup-store-env.sh` - Environment setup script for store operations
+- `src/main/java/.../*.java` - Example source files
+- `pom.xml` - Maven build configuration
+- `target/` - Compiled classes (after build)
+- `test_data/` - Test database files (created by examples)

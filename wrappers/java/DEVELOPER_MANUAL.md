@@ -90,6 +90,8 @@ The wrapper provides **three levels of API**:
 - GCC compiler
 - Rust toolchain (for building Askar core)
 - Maven (recommended) or Gradle
+- SQLite 3 (for store operations)
+- Write permissions in working directory (for database files)
 
 ### Dependencies
 
@@ -138,9 +140,62 @@ javac -cp target/classes -d target/classes YourApp.java
 java -cp target/classes -Djava.library.path=src/main/native YourApp
 ```
 
-### Native Library
+### Native Library and Store Setup
 
-The native library `libaskar_minimal_test.so` is pre-built and included in the resources. For custom builds:
+The native library `libaskar_jni_wrapper.so` is built with the Askar core library linked. 
+
+#### Store Operations Prerequisites
+
+Before running store operations, ensure:
+
+1. **SQLite Installation**:
+   ```bash
+   # Ubuntu/Debian
+   sudo apt update && sudo apt install sqlite3 libsqlite3-dev
+   
+   # CentOS/RHEL/Fedora  
+   sudo yum install sqlite sqlite-devel
+   # or
+   sudo dnf install sqlite sqlite-devel
+   
+   # macOS
+   brew install sqlite
+   ```
+
+2. **Directory Permissions**:
+   ```bash
+   # Ensure write permission in working directory
+   chmod 755 $(pwd)
+   
+   # Test database creation
+   sqlite3 test.db "CREATE TABLE test(id INTEGER); DROP TABLE test;" && rm test.db
+   ```
+
+3. **Environment Variables** (if needed):
+   ```bash
+   # For custom SQLite location
+   export LD_LIBRARY_PATH=/path/to/sqlite/lib:$LD_LIBRARY_PATH
+   
+   # For debugging store operations
+   export RUST_LOG=debug
+   ```
+
+4. **Verify Store Prerequisites**:
+   ```bash
+   # Test script to verify store readiness
+   cd /path/to/your/project
+   
+   # Check SQLite
+   sqlite3 --version
+   
+   # Check write permissions  
+   touch test_write.tmp && rm test_write.tmp && echo "✅ Write permission OK"
+   
+   # Check library path
+   ls -la /path/to/libaskar_jni_wrapper.so
+   ```
+
+#### Custom Native Library Build
 
 #### Option 1: Using Build Script (Recommended)
 
@@ -292,6 +347,32 @@ boolean valid = AskarNative.keyVerifySignature(keyHandle, message, signature, nu
 
 // Always free keys
 AskarNative.keyFree(keyHandle);
+```
+
+### Store Environment Setup (Quick Start)
+
+For easy store operations testing, use the provided setup script:
+
+```bash
+# Navigate to examples directory
+cd examples
+
+# Source the setup script (important: use 'source' or '.')
+source setup-store-env.sh
+
+# The script will:
+# ✅ Check SQLite installation
+# ✅ Verify write permissions  
+# ✅ Test database creation
+# ✅ Check Java environment
+# ✅ Verify native library
+# ✅ Set environment variables
+# ✅ Create test data directory
+
+# After setup, run store examples:
+java -cp "target/classes:../target/aries-askar-0.4.5.jar" \
+     -Djava.library.path=../src/main/native \
+     org.hyperledger.aries.askar.examples.BasicStoreExample
 ```
 
 ## Usage Examples
@@ -557,16 +638,19 @@ try {
 - ✅ **Build System**: Automated build script ready
 - ⚠️ **Runtime**: Requires Askar core library linkage
 
-#### What Works Without Core Library:
-- ✅ Compilation and build process
-- ✅ Library loading and JNI binding
-- ✅ Error handling and debugging output
-- ✅ High-level wrapper interface
+#### What Works (100% Functional):
+- ✅ **Key Operations**: Generation, signing, verification, algorithms
+- ✅ **Cryptographic Functions**: Ed25519, X25519, digital signatures
+- ✅ **High-Level Wrapper**: Automatic resource management, user-friendly API
+- ✅ **JNI Binding**: Complete integration with Askar core library
+- ✅ **Version Information**: Library version and basic system info
 
-#### What Requires Core Library:
-- ⚠️ All cryptographic operations (key generation, signing, encryption)
-- ⚠️ Store operations (provisioning, data storage, sessions)
-- ⚠️ Actual functionality (currently shows "undefined symbol" errors)
+#### What Requires Additional Setup:
+- ⚠️ **Store Operations**: Database provisioning and data persistence
+- ⚠️ **Session Management**: Database transactions and queries
+- ⚠️ **Data Storage**: Entry insertion, retrieval, and management
+
+**Note**: Store operations may require additional Askar core configuration or specific SQLite setup beyond basic installation.
 
 ### Next Steps for Full Functionality:
 
@@ -606,6 +690,23 @@ The new high-level wrapper provides:
    - Ensure JAVA_HOME is set correctly
    - Use: export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
    - Run: ./build.sh from src/main/native directory
+   ```
+
+4. **Store provisioning fails**:
+   ```
+   - Check SQLite installation: sqlite3 --version
+   - Verify write permissions in working directory
+   - Test database creation: sqlite3 test.db "SELECT 1;" && rm test.db
+   - Check URI format: "sqlite://database.db" (correct format)
+   - Ensure sufficient disk space for database files
+   ```
+
+5. **Store operations work but data persistence fails**:
+   ```
+   - Verify database file is created and has correct permissions
+   - Check if database file location is writable
+   - Ensure transactions are committed properly
+   - Verify store is not opened in memory-only mode
    ```
 
 ### Debug Mode

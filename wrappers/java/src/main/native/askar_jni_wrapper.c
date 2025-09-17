@@ -124,10 +124,19 @@ JNIEXPORT jlong JNICALL Java_org_hyperledger_aries_askar_AskarNative_storeProvis
     const char* c_pass_key = get_string_utf(env, passKey);
     const char* c_profile = get_string_utf(env, profile);
     
+    printf("DEBUG: storeProvision called with:\n");
+    printf("  URI: %s\n", c_uri ? c_uri : "(null)");
+    printf("  Key method: %s\n", c_key_method ? c_key_method : "(null)");
+    printf("  Pass key: %s\n", c_pass_key ? "[REDACTED]" : "(null)");
+    printf("  Profile: %s\n", c_profile ? c_profile : "(null)");
+    printf("  Recreate: %s\n", recreate ? "true" : "false");
+    
     ErrorCode result = askar_store_provision(
         c_uri, c_key_method, c_pass_key, c_profile, 
         (int8_t)recreate, store_handle_callback, 1
     );
+    
+    printf("DEBUG: askar_store_provision returned: %ld\n", (long)result);
     
     release_string_utf(env, uri, c_uri);
     release_string_utf(env, keyMethod, c_key_method);
@@ -135,14 +144,21 @@ JNIEXPORT jlong JNICALL Java_org_hyperledger_aries_askar_AskarNative_storeProvis
     release_string_utf(env, profile, c_profile);
     
     if (result != 0) {
+        printf("DEBUG: storeProvision failed with FFI error: %ld\n", (long)result);
         return 0;
     }
     
+    printf("DEBUG: Waiting for callback...\n");
     ErrorCode callback_err = wait_for_callback();
+    printf("DEBUG: Callback completed with error: %ld, result: %ld\n", 
+           (long)callback_err, (long)callback_result);
+    
     if (callback_err != 0) {
+        printf("DEBUG: storeProvision failed with callback error: %ld\n", (long)callback_err);
         return 0;
     }
     
+    printf("DEBUG: storeProvision succeeded, returning handle: %ld\n", (long)callback_result);
     return (jlong)callback_result;
 }
 

@@ -1,6 +1,7 @@
 package org.hyperledger.aries.askar.examples;
 
 import org.hyperledger.aries.askar.AskarNative;
+import org.hyperledger.aries.askar.EntryOperation;
 import java.io.File;
 
 /**
@@ -13,24 +14,37 @@ public class BasicStoreExample {
         try {
             System.out.println("=== Askar Native API Basic Store Example ===");
             
-            // Test database file
-            String dbPath = "test_basic_store.db";
-            String storeUri = "sqlite://" + dbPath;
-            String rawKey = "basic_store_example_key_123456789012345678901234567890";
+            // Use in-memory SQLite as per Askar test code
+            String storeUri = "sqlite://:memory:";
+            
+            // Generate proper raw key using Askar's function
+            String rawKey;
+            try {
+                rawKey = AskarNative.storeGenerateRawKey(null); // null seed as per test
+                System.out.println("✅ Generated raw key successfully");
+            } catch (Exception e) {
+                System.out.println("⚠️  Failed to generate raw key: " + e.getMessage());
+                return;
+            }
 
-            // Clean up any existing test file
-            cleanupFile(dbPath);
+            // No cleanup needed for memory database
 
             System.out.println("1. Testing version...");
             String version = AskarNative.getVersion();
             System.out.println("✅ Askar version: " + version);
 
-            // Provision a new store
+            // Provision a new store using parameters from Askar test code
             System.out.println("\n2. Provisioning store...");
-            long storeHandle = AskarNative.storeProvision(storeUri, "raw", rawKey, "default", true);
+            System.out.println("   URI: " + storeUri);
+            System.out.println("   Key method: raw");
+            System.out.println("   Profile: null (as per test code)");
+            System.out.println("   Recreate: true");
             
-            if (storeHandle != 0) {
-                System.out.println("✅ Store provisioned successfully: " + storeHandle);
+            try {
+                long storeHandle = AskarNative.storeProvision(storeUri, "raw", rawKey, null, true);
+                
+                if (storeHandle != 0) {
+                    System.out.println("✅ Store provisioned successfully: " + storeHandle);
 
                 // Demonstrate basic operations
                 demonstrateBasicOperations(storeHandle);
@@ -38,16 +52,22 @@ public class BasicStoreExample {
                 // Demonstrate profile operations
                 demonstrateProfileOperations(storeHandle);
 
-                // Close store
-                AskarNative.storeClose(storeHandle);
-                System.out.println("✅ Store closed successfully");
-            } else {
-                System.out.println("⚠️  Store provisioning failed");
-                System.out.println("This may indicate native library setup issues");
+                    // Close store
+                    AskarNative.storeClose(storeHandle);
+                    System.out.println("✅ Store closed successfully");
+                } else {
+                    System.out.println("⚠️  Store provisioning failed - returned handle: " + storeHandle);
+                    System.out.println("   This may indicate:");
+                    System.out.println("   - SQLite database creation issues");
+                    System.out.println("   - Invalid URI format or path permissions");
+                    System.out.println("   - Askar core initialization problems");
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️  Store provisioning failed with exception: " + e.getMessage());
+                e.printStackTrace();
             }
 
-            // Clean up
-            cleanupFile(dbPath);
+            // No cleanup needed for memory database
             System.out.println("\n🎉 Basic Store Example completed successfully!");
 
         } catch (Exception e) {
@@ -60,88 +80,112 @@ public class BasicStoreExample {
         System.out.println("\n=== Basic Data Operations ===");
 
         try {
-            // Start a session
-            long sessionHandle = AskarNative.sessionStart(storeHandle, "default", false);
-            if (sessionHandle == 0) {
-                System.out.println("❌ Failed to start session");
-                return;
-            }
-            System.out.println("✅ Session started: " + sessionHandle);
+            // Test key operations first (as per Rust test pattern)
+            System.out.println("\n3. Testing key operations...");
             
-            // Insert some test data
-            System.out.println("\n3. Testing data insertion...");
-            AskarNative.sessionUpdate(
-                sessionHandle,
-                (byte)1, // Insert operation
-                "credentials",
-                "user_credential_1",
-                createSampleCredential().getBytes(),
-                "{\"type\": \"credential\", \"issuer\": \"example_org\", \"status\": \"active\"}",
-                0
-            );
-            System.out.println("✅ Inserted credential 1");
-
-            AskarNative.sessionUpdate(
-                sessionHandle,
-                (byte)1, // Insert operation
-                "credentials", 
-                "user_credential_2",
-                "Sample credential data 2".getBytes(),
-                "{\"type\": \"credential\", \"issuer\": \"example_org\", \"status\": \"revoked\"}",
-                0
-            );
-            System.out.println("✅ Inserted credential 2");
-
-            // Count entries
-            System.out.println("\n4. Testing entry count...");
-            int totalCount = AskarNative.sessionCount(sessionHandle, "credentials", null);
-            System.out.println("✅ Total credentials: " + totalCount);
-
-            // Count with tag filter
-            int activeCount = AskarNative.sessionCount(sessionHandle, "credentials", "{\"status\": \"active\"}");
-            System.out.println("✅ Active credentials: " + activeCount);
-
-            // Fetch specific entry
-            System.out.println("\n5. Testing entry fetch...");
-            long entryList = AskarNative.sessionFetch(sessionHandle, "credentials", "user_credential_1", false);
-            if (entryList != 0) {
-                String category = AskarNative.entryListGetCategory(entryList, 0);
-                String name = AskarNative.entryListGetName(entryList, 0);
-                byte[] value = AskarNative.entryListGetValue(entryList, 0);
-                String tags = AskarNative.entryListGetTags(entryList, 0);
+            // Generate a key for testing (following Rust test pattern)
+            long keyHandle = AskarNative.keyGenerate("ed25519", null, false);
+            if (keyHandle != 0) {
+                System.out.println("✅ Generated Ed25519 key for testing: " + keyHandle);
                 
-                System.out.println("✅ Retrieved entry:");
-                System.out.println("   Category: " + category);
-                System.out.println("   Name: " + name);
-                System.out.println("   Value: " + new String(value));
-                System.out.println("   Tags: " + tags);
+                // Start a transaction session (as per test pattern)
+                long sessionHandle = AskarNative.sessionStart(storeHandle, null, true);
+                if (sessionHandle == 0) {
+                    System.out.println("❌ Failed to start transaction session");
+                    AskarNative.keyFree(keyHandle);
+                    return;
+                }
+                System.out.println("✅ Transaction session started: " + sessionHandle);
                 
-                AskarNative.entryListFree(entryList);
-            } else {
-                System.out.println("⚠️  Entry not found or fetch failed");
-            }
-
-            // Fetch all entries
-            System.out.println("\n6. Testing fetch all entries...");
-            long allEntries = AskarNative.sessionFetchAll(sessionHandle, "credentials", null, 10, null, false, false);
-            if (allEntries != 0) {
-                int count = AskarNative.entryListCount(allEntries);
-                System.out.println("✅ Fetched " + count + " entries:");
-                
-                for (int i = 0; i < count; i++) {
-                    String name = AskarNative.entryListGetName(allEntries, i);
-                    String tags = AskarNative.entryListGetTags(allEntries, i);
-                    System.out.println("   " + (i + 1) + ". " + name + " - " + tags);
+                // Insert key with metadata (following Rust test pattern)
+                try {
+                    AskarNative.sessionInsertKey(sessionHandle, keyHandle, "test_key", "test metadata", null, 0);
+                    System.out.println("✅ Key inserted successfully");
+                    
+                    // Try simple data insertion with minimal data
+                    System.out.println("\n4. Testing simple data insertion...");
+                    AskarNative.sessionUpdate(
+                        sessionHandle,
+                        EntryOperation.INSERT.getValue(), // Using proper INSERT operation
+                        "test",
+                        "simple_entry",
+                        "simple test data".getBytes(),
+                        null, // No tags initially
+                        0
+                    );
+                    System.out.println("✅ Simple data inserted");
+                    
+                    // Test immediate retrieval within same transaction
+                    System.out.println("\n4.1. Testing immediate retrieval within transaction...");
+                    int immediateCount = AskarNative.sessionCount(sessionHandle, "test", null);
+                    System.out.println("✅ Immediate test entries count: " + immediateCount);
+                    
+                    if (immediateCount > 0) {
+                        long immediateEntry = AskarNative.sessionFetch(sessionHandle, "test", "simple_entry", false);
+                        if (immediateEntry != 0) {
+                            String value = new String(AskarNative.entryListGetValue(immediateEntry, 0));
+                            System.out.println("✅ Retrieved within transaction: " + value);
+                            AskarNative.entryListFree(immediateEntry);
+                        }
+                    }
+                    
+                } catch (Exception e) {
+                    System.out.println("⚠️  Key/Data operations failed: " + e.getMessage());
                 }
                 
-                AskarNative.entryListFree(allEntries);
+                // Commit transaction
+                AskarNative.sessionClose(sessionHandle, true);
+                System.out.println("✅ Transaction committed");
+                AskarNative.keyFree(keyHandle);
             } else {
-                System.out.println("⚠️  No entries found or fetch failed");
+                System.out.println("⚠️  Failed to generate test key");
+                return;
             }
 
-            // Close session
-            AskarNative.sessionClose(sessionHandle, true);
-            System.out.println("✅ Session closed and committed");
+            // Test data retrieval with new session (following proper session lifecycle)
+            System.out.println("\n5. Testing data retrieval...");
+            long readSession = AskarNative.sessionStart(storeHandle, null, false);
+            if (readSession != 0) {
+                try {
+                    // Count simple entries
+                    int testCount = AskarNative.sessionCount(readSession, "test", null);
+                    System.out.println("✅ Test entries count: " + testCount);
+                    
+                    // Fetch the inserted key
+                    long fetchedKeyHandle = AskarNative.sessionFetchKey(readSession, "test_key", false);
+                    if (fetchedKeyHandle != 0) {
+                        System.out.println("✅ Retrieved inserted key: " + fetchedKeyHandle);
+                        AskarNative.keyFree(fetchedKeyHandle);
+                    } else {
+                        System.out.println("⚠️  Could not retrieve inserted key");
+                    }
+                    
+                    // Fetch simple data entry
+                    long entryList = AskarNative.sessionFetch(readSession, "test", "simple_entry", false);
+                    if (entryList != 0) {
+                        String category = AskarNative.entryListGetCategory(entryList, 0);
+                        String name = AskarNative.entryListGetName(entryList, 0);
+                        byte[] value = AskarNative.entryListGetValue(entryList, 0);
+                        
+                        System.out.println("✅ Retrieved entry:");
+                        System.out.println("   Category: " + category);
+                        System.out.println("   Name: " + name);
+                        System.out.println("   Value: " + new String(value));
+                        
+                        AskarNative.entryListFree(entryList);
+                    } else {
+                        System.out.println("⚠️  Entry not found or fetch failed");
+                    }
+                    
+                } catch (Exception e) {
+                    System.out.println("⚠️  Data retrieval failed: " + e.getMessage());
+                } finally {
+                    AskarNative.sessionClose(readSession, false);
+                    System.out.println("✅ Read session closed");
+                }
+            } else {
+                System.out.println("⚠️  Failed to start read session");
+            }
 
         } catch (Exception e) {
             System.out.println("⚠️  Data operations failed: " + e.getMessage());
