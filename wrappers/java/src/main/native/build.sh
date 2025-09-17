@@ -60,7 +60,7 @@ fi
 
 # Set source and output files
 SOURCE_FILE="askar_jni_wrapper.c"
-OUTPUT_FILE="libaskar_minimal_test.so"  # Keep existing name for compatibility
+OUTPUT_FILE="libaskar_jni_wrapper.so"
 
 echo "📁 Source file: $SOURCE_FILE"
 echo "📁 Output file: $OUTPUT_FILE"
@@ -76,11 +76,34 @@ fi
 echo ""
 echo "🔨 Compiling..."
 
-# Compile with GCC
+# Find Askar core library
+ASKAR_LIB_DIR="/home/ubuntu/Projects/DID/askar/target/release"
+ASKAR_LIB="$ASKAR_LIB_DIR/libaries_askar.so"
+
+echo "📁 Askar library: $ASKAR_LIB"
+
+# Check if Askar library exists
+if [ ! -f "$ASKAR_LIB" ]; then
+    echo "❌ Askar core library not found: $ASKAR_LIB"
+    echo "Building Askar core library..."
+    cd /home/ubuntu/Projects/DID/askar
+    cargo build --release
+    cd - > /dev/null
+    
+    if [ ! -f "$ASKAR_LIB" ]; then
+        echo "❌ Failed to build Askar core library"
+        exit 1
+    fi
+fi
+
+# Compile with GCC and link Askar core
 gcc -shared -fPIC -o "$OUTPUT_FILE" "$SOURCE_FILE" \
     -I"$JAVA_INCLUDE" \
     -I"$JAVA_INCLUDE_LINUX" \
-    -lpthread
+    -L"$ASKAR_LIB_DIR" \
+    -laries_askar \
+    -lpthread \
+    -Wl,-rpath,"$ASKAR_LIB_DIR"
 
 # Check compilation result
 if [ $? -eq 0 ]; then

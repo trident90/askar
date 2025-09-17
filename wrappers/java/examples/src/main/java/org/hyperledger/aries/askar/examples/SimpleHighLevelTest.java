@@ -82,8 +82,8 @@ public class SimpleHighLevelTest {
             seed = java.util.Arrays.copyOf(seed, 32);
         }
         
-        try (SimpleKey seedKey1 = SimpleKey.fromSeed("ed25519", seed, "raw");
-             SimpleKey seedKey2 = SimpleKey.fromSeed("ed25519", seed, "raw")) {
+        try (SimpleKey seedKey1 = SimpleKey.fromSeed("ed25519", seed, null);
+             SimpleKey seedKey2 = SimpleKey.fromSeed("ed25519", seed, null)) {
             
             System.out.println("✅ Deterministic keys from seed:");
             System.out.println("   Key 1 public: " + bytesToHex(seedKey1.getPublicBytes()));

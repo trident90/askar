@@ -8,9 +8,9 @@ public class AskarNative {
     
     static {
         try {
-            System.loadLibrary("askar_minimal_test");
+            System.loadLibrary("askar_jni_wrapper");
         } catch (UnsatisfiedLinkError e) {
-            throw new RuntimeException("Failed to load askar_minimal_test native library", e);
+            throw new RuntimeException("Failed to load askar_jni_wrapper native library", e);
         }
     }
     

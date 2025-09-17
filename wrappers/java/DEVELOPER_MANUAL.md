@@ -547,33 +547,32 @@ try {
 
 ## Current Status
 
-### ✅ Fully Working Features
+### 🔧 Requires Askar Core Library
 
-#### Key Management (100%)
-- ✅ Key generation (Ed25519, X25519, Secp256k1, P256)
-- ✅ Key from seed (deterministic generation)
-- ✅ Key information access
-- ✅ Automatic resource management
+**Important**: This Java wrapper requires the Askar core Rust library to be compiled and linked for full functionality.
 
-#### Digital Signatures (100%)
-- ✅ Message signing (string and byte array)
-- ✅ Signature verification
-- ✅ Tamper detection
-- ✅ Multiple signature types
+#### Current State:
+- ✅ **JNI Interface**: 100% implemented (67 functions, 3,096 lines of C code)
+- ✅ **High-Level Wrapper**: 100% implemented with user-friendly API
+- ✅ **Build System**: Automated build script ready
+- ⚠️ **Runtime**: Requires Askar core library linkage
 
-#### High-Level Interface (100%)
-- ✅ SimpleStore, SimpleSession, SimpleKey classes
-- ✅ Builder patterns and method overloads
-- ✅ Automatic cleanup with try-with-resources
-- ✅ Type safety with enums
-- ✅ Comprehensive examples and documentation
+#### What Works Without Core Library:
+- ✅ Compilation and build process
+- ✅ Library loading and JNI binding
+- ✅ Error handling and debugging output
+- ✅ High-level wrapper interface
 
-### ⚠️ Partially Working Features
+#### What Requires Core Library:
+- ⚠️ All cryptographic operations (key generation, signing, encryption)
+- ⚠️ Store operations (provisioning, data storage, sessions)
+- ⚠️ Actual functionality (currently shows "undefined symbol" errors)
 
-#### Store Operations (Store-dependent)
-- ⚠️ Store provisioning (may require native library setup)
-- ⚠️ Data insertion/fetching (depends on store functionality)
-- ⚠️ Session management (basic functionality working)
+### Next Steps for Full Functionality:
+
+1. **Build Askar Core**: Compile the Rust Askar library
+2. **Link Libraries**: Connect JNI wrapper with Askar core
+3. **Full Testing**: Run all examples with working crypto functions
 
 ### Architecture Benefits
 
@@ -592,21 +591,21 @@ The new high-level wrapper provides:
 
 1. **UnsatisfiedLinkError**: Native library not found
    ```
-   Solution: Ensure -Djava.library.path points to directory containing libaskar_jni_wrapper.so
+   Solution: Ensure -Djava.library.path points to directory containing libaskar_minimal_test.so
    ```
 
-2. **Store provisioning fails**:
+2. **Symbol lookup error**: undefined symbol: askar_*
    ```
-   - Check database URI format (e.g., "sqlite://database.db")
-   - Verify write permissions
-   - May require additional native library setup
+   - This indicates JNI wrapper loaded successfully but Askar core library is missing
+   - Expected behavior until Askar core Rust library is compiled and linked
+   - JNI interface is complete and ready for linkage
    ```
 
-3. **Key generation works but store operations fail**:
+3. **Compilation issues**:
    ```
-   - This is expected - key operations are fully implemented
-   - Store operations may need additional Askar core setup
-   - Use working examples as reference
+   - Ensure JAVA_HOME is set correctly
+   - Use: export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+   - Run: ./build.sh from src/main/native directory
    ```
 
 ### Debug Mode
