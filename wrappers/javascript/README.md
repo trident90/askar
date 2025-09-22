@@ -319,9 +319,18 @@ npm run build
 
 # Using the package name (ensure native library is available at runtime)
 npm run example:npm
+npm run example:npm:store
+npm run example:npm:store:adv
+npm run example:npm:store:file
+npm run example:npm:store:adv:file
+npm run example:npm:profiles:file
 
 # Or run directly from sources
 node examples/basic.js
+node examples/store_session_npm.js
+node examples/advanced_store_session_npm.js
+node examples/store_session_file_npm.js
+node examples/advanced_store_session_file_npm.js
 
 # Advanced example
 npm run example:npm:adv

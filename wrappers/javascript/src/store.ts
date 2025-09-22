@@ -277,16 +277,18 @@ export class Store {
   }
 
   async listProfiles(): Promise<string[]> {
-    // Prefer safe JSON sync path when available
+    // Prefer safe JSON sync path when available (single-attempt)
     try {
-      const sbPtr: any = koffi.alloc(require('./ffi').StrBuffer, 1);
-      const rc = askarLib.askar_store_list_profiles_json_sync(this.handle, sbPtr);
-      if (rc === 0) {
-        const sb = koffi.decode(sbPtr, require('./ffi').StrBuffer) as any;
-        const json = sb && sb.buffer ? (koffi.decode(sb.buffer, 'str') || '[]') : '[]';
-        if (sb && sb.buffer) askarLib.askar_string_free(sb.buffer);
-        const arr = JSON.parse(json);
-        if (Array.isArray(arr)) return arr.map((s) => String(s));
+      if (process.env.ASKAR_LIST_JSON !== '0' && process.env.DISABLE_LIST_JSON !== '1') {
+        const sbPtr: any = koffi.alloc(require('./ffi').StrBuffer, 1);
+        const rc = askarLib.askar_store_list_profiles_json_sync(this.handle, sbPtr);
+        if (rc === 0) {
+          const sb = koffi.decode(sbPtr, require('./ffi').StrBuffer) as any;
+          const json = sb && sb.buffer ? (koffi.decode(sb.buffer, 'str') || '[]') : '[]';
+          if (sb && sb.buffer) askarLib.askar_string_free(sb.buffer);
+          const arr = JSON.parse(json);
+          if (Array.isArray(arr)) return arr.map((s) => String(s));
+        }
       }
     } catch (_) {
       // fall back to callback-based path
@@ -313,6 +315,37 @@ export class Store {
     } finally {
       askarLib.askar_string_list_free(listHandle);
     }
+  }
+
+  /**
+   * More robust profile listing with retries and JSON-sync preference.
+   * - Respects env overrides: set ASKAR_LIST_JSON=0 (or DISABLE_LIST_JSON=1) to skip JSON path.
+   * - retries: number of JSON attempts before falling back (default 2)
+   * - delayMs: delay between retries (default 30ms)
+   */
+  async listProfilesStable(retries = 2, delayMs = 30): Promise<string[]> {
+    const tryJson = () => (process.env.ASKAR_LIST_JSON !== '0' && process.env.DISABLE_LIST_JSON !== '1');
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    if (tryJson()) {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const sbPtr: any = koffi.alloc(require('./ffi').StrBuffer, 1);
+          const rc = askarLib.askar_store_list_profiles_json_sync(this.handle, sbPtr);
+          if (rc === 0) {
+            const sb = koffi.decode(sbPtr, require('./ffi').StrBuffer) as any;
+            const json = sb && sb.buffer ? (koffi.decode(sb.buffer, 'str') || '[]') : '[]';
+            if (sb && sb.buffer) askarLib.askar_string_free(sb.buffer);
+            const arr = JSON.parse(json);
+            if (Array.isArray(arr)) return arr.map((s) => String(s));
+          }
+        } catch (_) {
+          // ignore and retry
+        }
+        if (i < retries) await sleep(delayMs);
+      }
+    }
+    // Fallback to callback-based path
+    return await this.listProfiles();
   }
 
   async removeProfile(profile: string): Promise<boolean> {

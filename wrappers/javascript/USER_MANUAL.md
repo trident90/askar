@@ -225,6 +225,73 @@ Notes:
 - Prefer sync helpers in examples/scripts to avoid pointer-heavy callbacks in certain Node environments.
 - Ensure the native library version matches the npm package version. Use `ASKAR_LIB_PATH` to point to the correct library.
 
+## Store/Session (npm) — Minimal Safe Flow
+
+```javascript
+const { Store } = require('aries-askar');
+
+(async () => {
+  const store = await Store.provision('sqlite://:memory:', 'kdf:argon2i:int', 'pass');
+  const session = store.startSessionSync();
+  session.insertSync('demo', 'e1', Buffer.from('v1'));
+  console.log('count:', session.countSync('demo'));
+  session.closeSync(true);
+  store.closeSync();
+})();
+```
+
+## Advanced Store/Session (npm) — Transactions & Updates
+
+```javascript
+const { Store } = require('aries-askar');
+
+(async () => {
+  const store = await Store.provision('sqlite://:memory:', 'kdf:argon2i:int', 'pass');
+  const tx = store.startSessionSync(undefined, true);
+  tx.insertSync('orders', 'o1', Buffer.from('A'), { status: 'open' });
+  tx.insertSync('orders', 'o2', Buffer.from('B'), { status: 'open' });
+  tx.insertSync('orders', 'o3', Buffer.from('C'), { status: 'closed' });
+  console.log('inTx:', tx.countSync('orders'));
+  tx.closeSync(true);
+  const s = store.startSessionSync();
+  console.log('total:', s.countSync('orders'));
+  s.replaceSync('orders', 'o2', Buffer.from('B2'), { status: 'closed' });
+  s.removeSync('orders', 'o1');
+  console.log('after:', s.countSync('orders'));
+  s.closeSync();
+  store.closeSync();
+})();
+```
+
+## Profiles & Scan (npm) — Safe Helpers + Counts
+
+```javascript
+const { Store } = require('aries-askar');
+
+(async () => {
+  const store = await Store.provision('sqlite://:memory:', 'kdf:argon2i:int', 'pass');
+  const session = store.startSessionSync();
+  session.insertSync('cats', 'tom', Buffer.from('meow'), { color: 'grey' });
+  session.insertSync('cats', 'jerry', Buffer.from('squeak'), { color: 'brown' });
+  session.insertSync('dogs', 'pluto', Buffer.from('woof'), { color: 'yellow' });
+  console.log('cats:', session.countSync('cats'), 'all:', session.countSync());
+  await store.createProfileNoPtr('p1');
+  await store.createProfileNoPtr('p2');
+  // Optional JSON-sync listing (set ENABLE_LIST=1) with stabilization & retries.
+  // listProfilesStable(retries=2, delayMs=30) → tries JSON path, falls back automatically.
+  if (process.env.ENABLE_LIST === '1') {
+    console.log('list(stable):', await store.listProfilesStable(2, 30));
+  }
+  console.log('exists:', await store.profileExists('p1'), await store.profileExists('p2'));
+  session.closeSync(true);
+  store.closeSync();
+})();
+```
+
+Notes:
+- Prefer counts to emulate scans (`fetchAllSync` may be pointer-heavy in some environments).
+- Use `createProfileNoPtr` and `profileExists` to avoid char** returns.
+
 ## Error Codes and Troubleshooting
 
 - Common rc values (ErrorCode):
@@ -259,3 +326,41 @@ node scripts/test-node.js
 
 ---
 If you find issues or have feature requests, please open an issue or PR in this repository.
+## File-based Variants
+
+The same stable patterns apply to file-backed SQLite stores:
+
+```javascript
+const { Store } = require('aries-askar');
+
+// Minimal file-based flow
+(async () => {
+  const uri = 'sqlite://file-demo.db';
+  const store = await Store.provision(uri, 'kdf:argon2i:int', 'file-pass', null, true);
+  const s = store.startSessionSync();
+  s.insertSync('demo', 'file', Buffer.from('v'), { t: 'f' });
+  console.log('count(file):', s.countSync('demo'));
+  s.closeSync(true);
+  store.closeSync();
+})();
+
+// Advanced file-based flow
+(async () => {
+  const uri = 'sqlite://file-adv-demo.db';
+  const store = await Store.provision(uri, 'kdf:argon2i:int', 'file-adv-pass', null, true);
+  const tx = store.startSessionSync(undefined, true);
+  tx.insertSync('orders', 'o1', Buffer.from('A'), { status: 'open' });
+  tx.insertSync('orders', 'o2', Buffer.from('B'), { status: 'open' });
+  console.log('inTx(file):', tx.countSync('orders'));
+  tx.closeSync(true);
+  const s = store.startSessionSync();
+  s.replaceSync('orders', 'o2', Buffer.from('B2'), { status: 'closed' });
+  console.log('after(file):', s.countSync('orders'));
+  s.closeSync();
+  store.closeSync();
+})();
+```
+
+Notes:
+- Use `recreate=true` for a clean file during demos/tests.
+- Keep using sync helpers to avoid callback/pointer issues in certain runtimes.
