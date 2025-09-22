@@ -1,6 +1,6 @@
 {
   "name": "aries-askar",
-  "version": "0.4.5",
+  "version": "0.4.7",
   "description": "Node.js FFI wrapper for Aries Askar secure storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -10,7 +10,14 @@
     "pretest": "npm run build-native && npm run build",
     "test": "jest --runInBand",
     "test:node": "npm run build-native && npm run build && node scripts/test-node.js",
-    "example": "node examples/basic.js"
+    "example": "node examples/basic.js",
+    "example:npm": "sh -c 'ASKAR_LIB_PATH=${ASKAR_LIB_PATH:-../../target/release/libaries_askar.so} node examples/basic.js'",
+    "example:npm:adv": "sh -c 'ASKAR_LIB_PATH=${ASKAR_LIB_PATH:-../../target/release/libaries_askar.so} node examples/advanced.js'",
+    "prepublishOnly": "npm run build",
+    "pack": "npm pack",
+    "release:patch": "npm version patch && npm publish --access public",
+    "release:minor": "npm version minor && npm publish --access public",
+    "release:major": "npm version major && npm publish --access public"
   },
   "keywords": [
     "aries",
@@ -21,22 +28,35 @@
     "hyperledger"
   ],
   "author": "Hyperledger Aries",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperledger/aries-askar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hyperledger/aries-askar/issues"
+  },
+  "homepage": "https://github.com/hyperledger/aries-askar/tree/main/wrappers/javascript",
   "license": "Apache-2.0",
   "dependencies": {
+    "aries-askar": "^0.4.7",
     "koffi": "^2.14.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "jest": "^29.0.0",
     "@types/jest": "^29.0.0",
-    "ts-jest": "^29.0.0"
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
   },
   "engines": {
     "node": ">=16.0.0"
   },
   "files": [
     "lib/**/*",
-    "README.md"
-  ]
+    "README.md",
+    "USER_MANUAL.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

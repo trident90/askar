@@ -12,4 +12,3 @@ const { LocalKey, KeyAlg } = require('../../lib');
   key.free();
   process.stdout.write(ok ? 'ok' : '');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });
-

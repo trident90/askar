@@ -13,6 +13,10 @@ export class Store {
     this.handle = handle;
   }
 
+  static fromHandle(handle: number): Store {
+    return new Store(handle);
+  }
+
   static async provision(
     uri: string,
     keyMethod?: string,
@@ -85,6 +89,11 @@ export class Store {
     await promise;
   }
 
+  closeSync(): void {
+    const rc = askarLib.askar_store_close_sync(this.handle);
+    checkResult(rc);
+  }
+
   async startSession(profile?: string, asTransaction: boolean = false): Promise<Session> {
     const [callbackId, promise] = createPromiseCallback<number>();
     registerCallbackHandler(callbackId, (cbId, errorCode, handle) => {
@@ -106,6 +115,19 @@ export class Store {
     checkResult(rc);
     const sessionHandle = await promise;
     return new Session(sessionHandle);
+  }
+
+  startSessionSync(profile?: string, asTransaction: boolean = false): Session {
+    const out = koffi.alloc('size_t', 1);
+    const rc = askarLib.askar_session_start_sync(
+      this.handle,
+      allocCString(profile || null),
+      asTransaction ? 1 : 0,
+      out
+    );
+    checkResult(rc);
+    const handle = koffi.decode(out, 'size_t');
+    return new Session(handle);
   }
 
   static getVersion(): string {
@@ -255,6 +277,21 @@ export class Store {
   }
 
   async listProfiles(): Promise<string[]> {
+    // Prefer safe JSON sync path when available
+    try {
+      const sbPtr: any = koffi.alloc(require('./ffi').StrBuffer, 1);
+      const rc = askarLib.askar_store_list_profiles_json_sync(this.handle, sbPtr);
+      if (rc === 0) {
+        const sb = koffi.decode(sbPtr, require('./ffi').StrBuffer) as any;
+        const json = sb && sb.buffer ? (koffi.decode(sb.buffer, 'str') || '[]') : '[]';
+        if (sb && sb.buffer) askarLib.askar_string_free(sb.buffer);
+        const arr = JSON.parse(json);
+        if (Array.isArray(arr)) return arr.map((s) => String(s));
+      }
+    } catch (_) {
+      // fall back to callback-based path
+    }
+
     const [callbackId, promise] = createPromiseCallback<number>();
     registerCallbackHandler(callbackId, (cbId, errorCode, handle) => {
       if (errorCode !== 0) {
@@ -298,6 +335,13 @@ export class Store {
     return await promise;
   }
 
+  removeProfileSync(profile: string): boolean {
+    const out = koffi.alloc('int8', 1);
+    const rc = askarLib.askar_store_remove_profile_sync(this.handle, profile, out);
+    checkResult(rc);
+    return koffi.decode(out, 'int8') !== 0;
+  }
+
   private readStringList(handle: number): string[] {
     const countPtr = koffi.alloc('int32', 1);
     checkResult(askarLib.askar_string_list_count(handle, countPtr));
@@ -312,5 +356,17 @@ export class Store {
       items.push(s || '');
     }
     return items;
+  }
+
+  async profileExists(profile: string): Promise<boolean> {
+    const out = koffi.alloc('int8', 1);
+    const rc = askarLib.askar_store_profile_exists_sync(this.handle, profile, out);
+    checkResult(rc);
+    return koffi.decode(out, 'int8') !== 0;
+  }
+
+  async createProfileNoPtr(profile?: string): Promise<void> {
+    const rc = askarLib.askar_store_create_profile_noptr_sync(this.handle, profile ?? null);
+    checkResult(rc);
   }
 }

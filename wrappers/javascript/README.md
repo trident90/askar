@@ -53,7 +53,15 @@ cargo build --release --features sqlite
 
 **Important**: The `sqlite` feature is required for store operations. This creates `libaries_askar.so` (Linux), `libaries_askar.dylib` (macOS), or `aries_askar.dll` (Windows) in `target/release/`.
 
-### 2. Install and Build JavaScript Wrapper
+### 2. Install from npm (for consumers)
+
+```bash
+npm install aries-askar@^0.4.6
+```
+
+Or, to develop locally against the source:
+
+### 2. Install and Build JavaScript Wrapper (from source)
 
 ```bash
 npm install
@@ -74,14 +82,14 @@ npm run build         # Builds TypeScript
 ## Quick Start
 
 ```javascript
-const { Store, LocalKey, KeyAlg, Askar } = require('./lib');
+const { Store, LocalKey, KeyAlg, Askar } = require('aries-askar');
 
 async function example() {
   // Set up logging
   Askar.setDefaultLogger();
 
-  // Create or open a store
-  const store = await Store.provision('sqlite://test.db', 'raw', 'test-key');
+  // Create or open a store (prefer KDF method for in-memory)
+  const store = await Store.provision('sqlite://test.db', 'kdf:argon2i:int', 'test-key');
 
   // Start a session
   const session = await store.startSession();
@@ -115,6 +123,41 @@ async function example() {
 example().catch(console.error);
 ```
 
+## User Manual
+
+- Full usage guide with copy‑paste examples: `wrappers/javascript/USER_MANUAL.md`
+- Covers safe patterns (no char**), sync helpers, and troubleshooting.
+ 
+## Publish to npm (maintainers)
+
+Steps for publishing the wrapper to npmjs.com (account: trident90):
+
+```bash
+cd wrappers/javascript
+
+# 1) Login with your npm account
+npm login  # username: trident90
+
+# 2) Build JS (prepublishOnly will also build automatically)
+npm run build
+
+# 3) Optional dry run (creates a tgz locally)
+npm run pack
+
+# 4) Publish a new patch/minor/major release (updates version + publishes)
+# Choose one of the following:
+npm run release:patch
+# npm run release:minor
+# npm run release:major
+
+# Alternatively:
+# npm version patch && npm publish --access public
+```
+
+Notes:
+- The npm package includes only the JS wrapper (lib/*). The Rust native library is not bundled. Ensure the Askar native library is installed/built and available at runtime (set `ASKAR_LIB_PATH` if needed).
+- The package’s `prepublishOnly` script runs `tsc` to ensure `lib/` is up-to-date.
+
 ## Core Classes
 
 ### Store
@@ -122,16 +165,26 @@ example().catch(console.error);
 The main entry point for working with Askar storage.
 
 ```javascript
-// Create a new store
+// Create a new store (async, callback-based)
 const store = await Store.provision(uri, keyMethod, passKey, profile, recreate);
 
-// Open existing store
+// Or: open existing store
 const store = await Store.open(uri, keyMethod, passKey, profile);
 
 // Store operations
 await store.rekey(newKeyMethod, newPassKey);
 const backupStore = await store.copy(targetUri, keyMethod, passKey);
 await Store.remove(uri);
+
+// Safer/sync helpers (avoid pointer marshalling in some environments)
+await store.createProfileNoPtr('profileA');   // create without returning name pointer
+const exists = await store.profileExists('profileA');
+const removed = store.removeProfileSync('profileA');
+store.closeSync();
+
+// If you provision via sync FFI, you can still wrap the handle:
+// const handle = ... // result of askar_store_provision_sync
+// const store = Store.fromHandle(handle);
 ```
 
 ### Session
@@ -157,6 +210,19 @@ await session.removeKey(name);
 
 await session.close(commit);
 ```
+
+## Sync vs Async Guidance
+
+- Prefer async methods (default) for application code where event loop throughput matters.
+- Prefer sync helpers when:
+  - Running in startup/teardown paths (small, bounded work) where determinism is desired.
+  - Avoiding fragile char** pointer marshalling (use `createProfileNoPtr`, `profileExists`, `removeProfileSync`, `closeSync`).
+  - Writing short scripts/tests where simplicity is preferred over callbacks.
+- For in‑memory SQLite stores, use `kdf:argon2i:int` + passphrase instead of `raw` with blank key to avoid `Input (rc=5)`.
+
+### Notes
+- For in-memory SQLite stores, prefer provisioning with a KDF method like `kdf:argon2i:int` and a passphrase to avoid Input (rc=5) errors.
+- On some Node environments, char** marshalling can be fragile. Use the sync helpers above (`createProfileNoPtr`, `profileExists`, `removeProfileSync`, `closeSync`) to avoid pointer-based callbacks.
 
 ### LocalKey
 
@@ -250,7 +316,16 @@ Run examples:
 
 ```bash
 npm run build
+
+# Using the package name (ensure native library is available at runtime)
+npm run example:npm
+
+# Or run directly from sources
 node examples/basic.js
+
+# Advanced example
+npm run example:npm:adv
+node examples/advanced.js
 ```
 
 ## Library Path Configuration

@@ -33,6 +33,11 @@ export class Session {
     return promise;
   }
 
+  closeSync(commit: boolean = true): void {
+    const rc = askarLib.askar_session_close_sync(this.handle, commit ? 1 : 0);
+    checkResult(rc);
+  }
+
   async count(category?: string, tagFilter?: string | Record<string, string>): Promise<number> {
     const [callbackId, promise] = createPromiseCallback<number>();
     registerCallbackHandler(callbackId, (cbId: number, errorCode: number, count: number) => {
@@ -56,6 +61,19 @@ export class Session {
 
     checkResult(result);
     return promise;
+  }
+
+  countSync(category?: string, tagFilter?: string | Record<string, string>): number {
+    const out = koffi.alloc('int64', 1);
+    const filterStr = typeof tagFilter === 'string' ? tagFilter : tagFilter ? JSON.stringify(tagFilter) : null;
+    const rc = askarLib.askar_session_count_sync(
+      this.handle,
+      allocCString(category || null),
+      allocCString(filterStr),
+      out
+    );
+    checkResult(rc);
+    return Number(koffi.decode(out, 'int64'));
   }
 
   async fetch(category: string, name: string, forUpdate: boolean = false): Promise<Entry | null> {
@@ -86,6 +104,22 @@ export class Session {
 
     checkResult(result);
     return promise;
+  }
+
+  fetchSync(category: string, name: string, forUpdate: boolean = false): Entry | null {
+    const out = koffi.alloc('size_t', 1);
+    const rc = askarLib.askar_session_fetch_sync(
+      this.handle,
+      allocCString(category),
+      allocCString(name),
+      forUpdate ? 1 : 0,
+      out
+    );
+    checkResult(rc);
+    const list = koffi.decode(out, 'size_t');
+    const entries = this.readEntryList(list);
+    askarLib.askar_entry_list_free(list);
+    return entries.length > 0 ? entries[0] : null;
   }
 
   async fetchAll(
@@ -129,6 +163,33 @@ export class Session {
 
     checkResult(result);
     return promise;
+  }
+
+  fetchAllSync(
+    category?: string,
+    tagFilter?: string | Record<string, string>,
+    limit?: number,
+    orderBy?: string,
+    descending: boolean = false,
+    forUpdate: boolean = false
+  ): Entry[] {
+    const out = koffi.alloc('size_t', 1);
+    const filterStr = typeof tagFilter === 'string' ? tagFilter : tagFilter ? JSON.stringify(tagFilter) : null;
+    const rc = askarLib.askar_session_fetch_all_sync(
+      this.handle,
+      allocCString(category || null),
+      allocCString(filterStr),
+      limit || -1,
+      allocCString(orderBy || null),
+      descending ? 1 : 0,
+      forUpdate ? 1 : 0,
+      out
+    );
+    checkResult(rc);
+    const list = koffi.decode(out, 'size_t');
+    const entries = this.readEntryList(list);
+    askarLib.askar_entry_list_free(list);
+    return entries;
   }
 
   async removeAll(
@@ -206,6 +267,26 @@ export class Session {
     return this.update(EntryOperation.Insert, category, name, value, tags, expiryMs);
   }
 
+  insertSync(
+    category: string,
+    name: string,
+    value: Buffer | string,
+    tags?: Record<string, string>,
+    expiryMs?: number
+  ): void {
+    const tagsStr = tags ? JSON.stringify(tags) : null;
+    const rc = askarLib.askar_session_update_sync(
+      this.handle,
+      0, // Insert
+      allocCString(category),
+      allocCString(name),
+      createByteBuffer(value),
+      allocCString(tagsStr),
+      expiryMs ?? -1
+    );
+    checkResult(rc);
+  }
+
   async replace(
     category: string,
     name: string,
@@ -216,11 +297,44 @@ export class Session {
     return this.update(EntryOperation.Replace, category, name, value, tags, expiryMs);
   }
 
+  replaceSync(
+    category: string,
+    name: string,
+    value: Buffer | string,
+    tags?: Record<string, string>,
+    expiryMs?: number
+  ): void {
+    const tagsStr = tags ? JSON.stringify(tags) : null;
+    const rc = askarLib.askar_session_update_sync(
+      this.handle,
+      1, // Replace
+      allocCString(category),
+      allocCString(name),
+      createByteBuffer(value),
+      allocCString(tagsStr),
+      expiryMs ?? -1
+    );
+    checkResult(rc);
+  }
+
   async remove(
     category: string,
     name: string
   ): Promise<void> {
     return this.update(EntryOperation.Remove, category, name);
+  }
+
+  removeSync(category: string, name: string): void {
+    const rc = askarLib.askar_session_update_sync(
+      this.handle,
+      2, // Remove
+      allocCString(category),
+      allocCString(name),
+      createByteBuffer(null),
+      allocCString(null),
+      -1
+    );
+    checkResult(rc);
   }
 
   async insertKey(
