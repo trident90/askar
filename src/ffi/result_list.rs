@@ -31,7 +31,7 @@ impl<R> FfiResultList<R> {
 
     pub fn len(&self) -> i32 {
         match self {
-            Self::Single(..) => 0,
+            Self::Single(..) => 1,
             Self::Rows(r) => r.len() as i32,
         }
     }

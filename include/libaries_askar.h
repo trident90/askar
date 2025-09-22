@@ -211,6 +211,11 @@ typedef struct AeadParams {
  */
 typedef const char *FfiStr;
 
+// String buffer compatible with ffi_support::define_string_destructor
+typedef struct StrBuffer {
+  const char *buffer;
+} StrBuffer;
+
 typedef struct FfiResultList_KeyEntry FfiKeyEntryList;
 
 typedef struct ArcHandle_FfiKeyEntryList {
@@ -371,6 +376,7 @@ ErrorCode askar_key_from_seed(FfiStr alg,
 ErrorCode askar_key_generate(FfiStr alg, FfiStr key_backend, int8_t ephemeral, LocalKeyHandle *out);
 
 ErrorCode askar_key_get_algorithm(LocalKeyHandle handle, const char **out);
+ErrorCode askar_key_get_algorithm_buf(LocalKeyHandle handle, struct StrBuffer *out);
 
 ErrorCode askar_key_get_ephemeral(LocalKeyHandle handle, int8_t *out);
 
@@ -391,6 +397,11 @@ ErrorCode askar_key_sign_message(LocalKeyHandle handle,
                                  FfiStr sig_type,
                                  struct SecretBuffer *out);
 
+// Helper: sign message and return base64 string (must be freed with askar_string_free)
+const char *askar_key_sign_message_b64(LocalKeyHandle handle,
+                                       struct ByteBuffer message,
+                                       FfiStr sig_type);
+
 ErrorCode askar_key_unwrap_key(LocalKeyHandle handle,
                                FfiStr alg,
                                struct ByteBuffer ciphertext,
@@ -403,6 +414,12 @@ ErrorCode askar_key_verify_signature(LocalKeyHandle handle,
                                      struct ByteBuffer signature,
                                      FfiStr sig_type,
                                      int8_t *out);
+
+// Helper: verify signature and return boolean directly (1 true, 0 false)
+int8_t askar_key_verify_signature_bool(LocalKeyHandle handle,
+                                       struct ByteBuffer message,
+                                       struct ByteBuffer signature,
+                                       FfiStr sig_type);
 
 ErrorCode askar_key_wrap_key(LocalKeyHandle handle,
                              LocalKeyHandle other,
@@ -633,3 +650,100 @@ char *askar_version(void);
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
+const char *askar_key_aead_random_nonce_b64(LocalKeyHandle handle);
+const char *askar_key_aead_encrypt_b64(LocalKeyHandle handle,
+                                       struct ByteBuffer message,
+                                       FfiStr nonce_b64,
+                                       struct ByteBuffer aad);
+const char *askar_key_aead_decrypt_b64(LocalKeyHandle handle,
+                                       FfiStr cipher_b64,
+                                       FfiStr nonce_b64,
+                                       FfiStr tag_b64,
+                                       struct ByteBuffer aad);
+
+const char *askar_key_crypto_box_random_nonce_b64(void);
+const char *askar_key_crypto_box_b64(LocalKeyHandle recip_handle,
+                                     LocalKeyHandle sender_handle,
+                                     struct ByteBuffer message,
+                                     FfiStr nonce_b64);
+const char *askar_key_crypto_box_open_b64(LocalKeyHandle recip_handle,
+                                          LocalKeyHandle sender_handle,
+                                          FfiStr cipher_b64,
+                                          FfiStr nonce_b64);
+const char *askar_key_crypto_box_seal_b64(LocalKeyHandle handle,
+                                          struct ByteBuffer message);
+const char *askar_key_crypto_box_seal_open_b64(LocalKeyHandle handle,
+                                               FfiStr cipher_b64);
+
+const char *askar_key_wrap_key_b64(LocalKeyHandle handle,
+                                   LocalKeyHandle other,
+                                   FfiStr nonce_b64);
+size_t askar_key_unwrap_key_b64(LocalKeyHandle handle,
+                                FfiStr alg,
+                                FfiStr cipher_b64,
+                                FfiStr nonce_b64,
+                                FfiStr tag_b64);
+
+size_t askar_key_derive_ecdh_es_b64(FfiStr alg,
+                                    LocalKeyHandle ephem_key,
+                                    LocalKeyHandle recip_key,
+                                    FfiStr alg_id_b64,
+                                    FfiStr apu_b64,
+                                    FfiStr apv_b64,
+                                    int8_t receive);
+size_t askar_key_derive_ecdh_1pu_b64(FfiStr alg,
+                                     LocalKeyHandle ephem_key,
+                                     LocalKeyHandle sender_key,
+                                     LocalKeyHandle recip_key,
+                                     FfiStr alg_id_b64,
+                                     FfiStr apu_b64,
+                                     FfiStr apv_b64,
+                                     FfiStr cc_tag_b64,
+                                     int8_t receive);
+// Synchronous helpers (no callbacks)
+ErrorCode askar_store_provision_sync(FfiStr spec_uri,
+                                     FfiStr key_method,
+                                     FfiStr pass_key,
+                                     FfiStr profile,
+                                     int8_t recreate,
+                                     StoreHandle *out);
+
+ErrorCode askar_store_open_sync(FfiStr spec_uri,
+                                FfiStr key_method,
+                                FfiStr pass_key,
+                                FfiStr profile,
+                                StoreHandle *out);
+
+ErrorCode askar_store_close_sync(StoreHandle handle);
+
+ErrorCode askar_store_create_profile_sync(StoreHandle handle, FfiStr profile, const char **out);
+ErrorCode askar_store_list_profiles_sync(StoreHandle handle, StringListHandle *out);
+ErrorCode askar_store_remove_profile_sync(StoreHandle handle, FfiStr profile, int8_t *out);
+
+ErrorCode askar_session_start_sync(StoreHandle handle, FfiStr profile, int8_t as_tx, SessionHandle *out);
+ErrorCode askar_session_close_sync(SessionHandle handle, int8_t commit);
+
+ErrorCode askar_session_update_sync(SessionHandle handle,
+                                    int8_t operation,
+                                    FfiStr category,
+                                    FfiStr name,
+                                    struct ByteBuffer value,
+                                    FfiStr tags,
+                                    int64_t expiry_ms);
+
+ErrorCode askar_session_fetch_sync(SessionHandle handle,
+                                   FfiStr category,
+                                   FfiStr name,
+                                   int8_t for_update,
+                                   EntryListHandle *out);
+
+ErrorCode askar_session_count_sync(SessionHandle handle, FfiStr category, FfiStr tag_filter, int64_t *out);
+
+ErrorCode askar_session_fetch_all_sync(SessionHandle handle,
+                                       FfiStr category,
+                                       FfiStr tag_filter,
+                                       int64_t limit,
+                                       FfiStr order_by,
+                                       int8_t descending,
+                                       int8_t for_update,
+                                       EntryListHandle *out);

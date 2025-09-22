@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use super::{
     error::set_last_error,
     key::LocalKeyHandle,
+    key::StrBuffer,
     result_list::{
         EntryListHandle, FfiEntryList, FfiKeyEntryList, KeyEntryListHandle, StringListHandle,
     },
@@ -18,7 +19,7 @@ use crate::{
     entry::{Entry, EntryOperation, Scan, TagFilter},
     error::Error,
     ffi::result_list::FfiStringList,
-    future::spawn_ok,
+    future::{spawn_ok, block_on},
     kms::KeyReference,
     store::{PassKey, Session, Store, StoreKeyMethod},
 };
@@ -61,6 +62,278 @@ impl StoreHandle {
 
     pub async fn replace(&self, store: Store) {
         FFI_STORES.write().await.insert(*self, store);
+    }
+}
+
+// ---------------------- Synchronous helpers (no callbacks) ----------------------
+
+#[no_mangle]
+pub extern "C" fn askar_store_provision_sync(
+    spec_uri: FfiStr<'_>,
+    key_method: FfiStr<'_>,
+    pass_key: FfiStr<'_>,
+    profile: FfiStr<'_>,
+    recreate: i8,
+    out: *mut StoreHandle,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let spec_uri = spec_uri.into_opt_string().ok_or_else(|| err_msg!("No provision spec URI provided"))?;
+        let key_method = match key_method.as_opt_str() {
+            Some(method) => StoreKeyMethod::parse_uri(method)?,
+            None => StoreKeyMethod::default()
+        };
+        let pass_key = PassKey::from(pass_key.as_opt_str()).into_owned();
+        let profile = profile.into_opt_string();
+        let store = block_on(Store::provision(spec_uri.as_str(), key_method, pass_key, profile, recreate != 0))?;
+        let handle = block_on(StoreHandle::create(store));
+        unsafe { *out = handle };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_open_sync(
+    spec_uri: FfiStr<'_>,
+    key_method: FfiStr<'_>,
+    pass_key: FfiStr<'_>,
+    profile: FfiStr<'_>,
+    out: *mut StoreHandle,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let spec_uri = spec_uri.into_opt_string().ok_or_else(|| err_msg!("No store URI provided"))?;
+        let key_method = match key_method.as_opt_str() {
+            Some(method) => Some(StoreKeyMethod::parse_uri(method)?),
+            None => None
+        };
+        let pass_key = PassKey::from(pass_key.as_opt_str()).into_owned();
+        let profile = profile.into_opt_string();
+        let store = block_on(Store::open(spec_uri.as_str(), key_method, pass_key, profile))?;
+        let handle = block_on(StoreHandle::create(store));
+        unsafe { *out = handle };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_close_sync(handle: StoreHandle) -> ErrorCode {
+    catch_err! {
+        let _ = block_on(handle.remove());
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_create_profile_sync(
+    handle: StoreHandle,
+    profile: FfiStr<'_>,
+    out: *mut *const c_char,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let profile = profile.into_opt_string();
+        let store = block_on(handle.load())?;
+        let name = block_on(store.create_profile(profile))?;
+        unsafe { *out = rust_string_to_c(name) };
+        Ok(ErrorCode::Success)
+    }
+}
+
+// Helper to create a profile without returning the allocated name pointer
+#[no_mangle]
+pub extern "C" fn askar_store_create_profile_noptr_sync(
+    handle: StoreHandle,
+    profile: FfiStr<'_>,
+) -> ErrorCode {
+    catch_err! {
+        let profile = profile.into_opt_string();
+        let store = block_on(handle.load())?;
+        let _ = block_on(store.create_profile(profile))?;
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_list_profiles_sync(
+    handle: StoreHandle,
+    out: *mut StringListHandle,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let store = block_on(handle.load())?;
+        let rows = block_on(store.list_profiles())?;
+        let res = StringListHandle::create(FfiStringList::from(rows));
+        unsafe { *out = res };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_list_profiles_json_sync(
+    handle: StoreHandle,
+    out: *mut StrBuffer,
+) -> ErrorCode {
+    use ffi_support::rust_string_to_c;
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let store = block_on(handle.load())?;
+        let rows = block_on(store.list_profiles())?;
+        let json = serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string());
+        unsafe { (*out).buffer = rust_string_to_c(json) };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_remove_profile_sync(
+    handle: StoreHandle,
+    profile: FfiStr<'_>,
+    out: *mut i8,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let profile = profile.into_opt_string().ok_or_else(|| err_msg!("Profile name not provided"))?;
+        let store = block_on(handle.load())?;
+        let removed = block_on(store.remove_profile(profile))?;
+        unsafe { *out = removed as i8 };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_store_profile_exists_sync(
+    handle: StoreHandle,
+    profile: FfiStr<'_>,
+    out: *mut i8,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let profile = profile.into_opt_string().ok_or_else(|| err_msg!("Profile name not provided"))?;
+        let store = block_on(handle.load())?;
+        let rows = block_on(store.list_profiles())?;
+        let exists = rows.iter().any(|p| p == &profile);
+        unsafe { *out = (exists as i8) };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_start_sync(
+    handle: StoreHandle,
+    profile: FfiStr<'_>,
+    as_transaction: i8,
+    out: *mut SessionHandle,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let profile = profile.into_opt_string();
+        let store = block_on(handle.load())?;
+        let session = if as_transaction == 0 { block_on(store.session(profile))? } else { block_on(store.transaction(profile))? };
+        let sid = block_on(FFI_SESSIONS.insert(handle, session));
+        unsafe { *out = sid };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_close_sync(handle: SessionHandle, commit: i8) -> ErrorCode {
+    catch_err! {
+        let session_res = block_on(FFI_SESSIONS.remove(handle)).ok_or_else(|| err_msg!("Invalid session handle"))?;
+        let mut session = session_res?;
+        if commit != 0 { block_on(session.commit()).ok(); }
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_update_sync(
+    handle: SessionHandle,
+    operation: i8,
+    category: FfiStr<'_>,
+    name: FfiStr<'_>,
+    value: ByteBuffer,
+    tags: FfiStr<'_>,
+    expiry_ms: i64,
+) -> ErrorCode {
+    catch_err! {
+        let operation = match operation { 0 => EntryOperation::Insert, 1 => EntryOperation::Replace, 2 => EntryOperation::Remove, _ => return Err(err_msg!("Invalid update operation")) };
+        let category = category.into_opt_string().ok_or_else(|| err_msg!("Entry category not provided"))?;
+        let name = name.into_opt_string().ok_or_else(|| err_msg!("Entry name not provided"))?;
+        let value = if value.as_slice().len() > 0 { Some(value.as_slice().to_vec()) } else { None };
+        let tags = if let Some(tags) = tags.as_opt_str() { Some(serde_json::from_str::<EntryTagSet<'static>>(tags).map_err(err_map!("Error decoding tags"))?.into_vec()) } else { None };
+        let expiry_ms = if expiry_ms < 0 { None } else { Some(expiry_ms) };
+        let mut session = block_on(FFI_SESSIONS.borrow(handle))?;
+        block_on(session.update(operation, &category, &name, value.as_deref(), tags.as_deref(), expiry_ms))?;
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_fetch_sync(
+    handle: SessionHandle,
+    category: FfiStr<'_>,
+    name: FfiStr<'_>,
+    for_update: i8,
+    out: *mut EntryListHandle,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let category = category.into_opt_string().ok_or_else(|| err_msg!("Category not provided"))?;
+        let name = name.into_opt_string().ok_or_else(|| err_msg!("Name not provided"))?;
+        let mut session = block_on(FFI_SESSIONS.borrow(handle))?;
+        let result = block_on(session.fetch(&category, &name, for_update != 0))?;
+        let h = match result { Some(entry) => EntryListHandle::create(FfiEntryList::from(entry)), None => EntryListHandle::invalid() };
+        unsafe { *out = h };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_count_sync(
+    handle: SessionHandle,
+    category: FfiStr<'_>,
+    tag_filter: FfiStr<'_>,
+    out: *mut i64,
+) -> ErrorCode {
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let category = category.into_opt_string();
+        let tag_filter = tag_filter.as_opt_str().map(TagFilter::from_str).transpose()?;
+        let mut session = block_on(FFI_SESSIONS.borrow(handle))?;
+        let count = block_on(session.count(category.as_deref(), tag_filter))?;
+        unsafe { *out = count };
+        Ok(ErrorCode::Success)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn askar_session_fetch_all_sync(
+    handle: SessionHandle,
+    category: FfiStr<'_>,
+    tag_filter: FfiStr<'_>,
+    limit: i64,
+    order_by: FfiStr<'_>,
+    descending: i8,
+    for_update: i8,
+    out: *mut EntryListHandle,
+) -> ErrorCode {
+    let order_by_str = order_by.as_opt_str().map(|s| s.to_lowercase());
+    let order_by = match order_by_str.as_deref() {
+        Some("id") => Some(OrderBy::Id),
+        Some(_) => return ErrorCode::Unsupported,
+        None => None,
+    };
+    let descending = descending != 0;
+    catch_err! {
+        check_useful_c_ptr!(out);
+        let category = category.into_opt_string();
+        let tag_filter = tag_filter.as_opt_str().map(TagFilter::from_str).transpose()?;
+        let mut session = block_on(FFI_SESSIONS.borrow(handle))?;
+        let rows = block_on(session.fetch_all(category.as_deref(), tag_filter, Some(limit), order_by, descending, for_update != 0))?;
+        let res = EntryListHandle::create(FfiEntryList::from(rows));
+        unsafe { *out = res };
+        Ok(ErrorCode::Success)
     }
 }
 

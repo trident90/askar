@@ -1,0 +1,42 @@
+{
+  "name": "aries-askar",
+  "version": "0.4.5",
+  "description": "Node.js FFI wrapper for Aries Askar secure storage",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build-native": "cd ../.. && cargo build --release --features sqlite",
+    "pretest": "npm run build-native && npm run build",
+    "test": "jest --runInBand",
+    "test:node": "npm run build-native && npm run build && node scripts/test-node.js",
+    "example": "node examples/basic.js"
+  },
+  "keywords": [
+    "aries",
+    "askar",
+    "storage",
+    "ffi",
+    "cryptography",
+    "hyperledger"
+  ],
+  "author": "Hyperledger Aries",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "koffi": "^2.14.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0",
+    "ts-jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "lib/**/*",
+    "README.md"
+  ]
+}
